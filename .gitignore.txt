@@ -1,0 +1,28 @@
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Build folders/Executables
+build/
+bin/
+dist/
+*.exe
+*.dll
+*.obj
+*.pdb
+*.lib
+*.tmp
+
+# IDE specific files (example for VS Code)
+.vscode/
+
+# Python specific (if using Python)
+__pycache__/
+*.pyc
+venv/
+.env/
+
+# Common temporary/log files
+*.log
+temp/
+tmp/
