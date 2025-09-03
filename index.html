@@ -168,6 +168,7 @@
             carrot: 'Assets/Obstacles/Carrot.png'
         };
         const soundSources = {
+            introGo: 'Assets/Audio/IntroGo.mp3',
             start: 'Audio/Gong.Start.mp3', end: 'Audio/Gong.End.mp3', jump: 'Audio/Jump.mp3',
             roll: 'Audio/Roll.mp3', woosh: 'Audio/Woosh.mp3', kabuki: 'Audio/Kabuki.mp3',
             track: 'Audio/Track.mp3', fail: 'Audio/Fail.mp3', bell: 'Audio/Bell.mp3',
@@ -186,7 +187,7 @@
             for (const key in soundSources) {
                 sounds[key] = new Audio();
                 sounds[key].src = soundSources[key];
-                if (key === 'track') sounds[key].loop = true;
+                if (key === 'track' || key === 'introGo') sounds[key].loop = true;
                 sounds[key].oncanplaythrough = assetLoaded;
                 sounds[key].onerror = () => console.error(`Failed to load sound: ${soundSources[key]}`);
             }
@@ -208,6 +209,7 @@
                         menuState = 'outro';
                         menuFrame = 0;
                         menuFrameTimer = 0;
+                        fadeOutSound(sounds.introGo, 1);
                         startGame(); // Start the game simultaneously with the outro
                     }
                 } else if (!player.isJumping && !gameOver) {
@@ -237,6 +239,25 @@
                 player.state = 'run';
             }
         });
+
+        // --- Sound Utility ---
+        function fadeOutSound(sound, durationSeconds) {
+            const initialVolume = sound.volume;
+            const fadeInterval = 50; // ms
+            const steps = (durationSeconds * 1000) / fadeInterval;
+            const volumeStep = initialVolume / steps;
+
+            const fade = setInterval(() => {
+                if (sound.volume > volumeStep) {
+                    sound.volume -= volumeStep;
+                } else {
+                    sound.volume = 0;
+                    sound.pause();
+                    sound.currentTime = 0;
+                    clearInterval(fade);
+                }
+            }, fadeInterval);
+        }
 
         // --- All Classes (Full logic restored) ---
         class VisualEffect { constructor() { this.markedForDeletion = false; } }
