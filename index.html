@@ -136,9 +136,9 @@
             teleportGold: { frames: 20, columns: 5, frameDuration: 0.05 },
             shuriken: { frames: 6, columns: 3, frameDuration: 0.05 },
             runCloud: { frames: 24, columns: 5, frameDuration: 0.08},
-            menuIntro: { frames: 28, columns: 4, frameDuration: 0.05, spriteWidth: 800, spriteHeight: 400 },
-            menuLoop: { frames: 28, columns: 4, frameDuration: 0.05, spriteWidth: 800, spriteHeight: 400 },
-            menuOutro: { frames: 28, columns: 4, frameDuration: 0.05, spriteWidth: 800, spriteHeight: 400 }
+            menuIntro: { frames: 28, columns: 4, frameDuration: 0.05, spriteWidth: 500, spriteHeight: 250 },
+            menuLoop: { frames: 28, columns: 4, frameDuration: 0.05, spriteWidth: 500, spriteHeight: 250 },
+            menuOutro: { frames: 28, columns: 4, frameDuration: 0.05, spriteWidth: 500, spriteHeight: 250 }
         };
 
         // --- Asset Loading ---
@@ -750,9 +750,7 @@
             }
             ctx.textAlign = 'center';
             if (!gameStarted) {
-                if (images.mainMenu && images.mainMenu.complete) {
-                    ctx.drawImage(images.mainMenu, 0, 0, canvas.width, canvas.height);
-                }
+                // This logic is now handled in drawMenu, but we keep a fallback
             }
             if (gameOver) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -782,6 +780,65 @@
         }
 
         // --- Game/Menu Loops ---
+        function updateMenu(deltaTime) {
+            menuFrameTimer += deltaTime;
+            let stateData;
+            if (menuState === 'intro') stateData = animationStates.menuIntro;
+            else if (menuState === 'loop') stateData = animationStates.menuLoop;
+            else if (menuState === 'outro') stateData = animationStates.menuOutro;
+
+            if (menuFrameTimer >= stateData.frameDuration) {
+                menuFrame++;
+                menuFrameTimer = 0;
+                
+                if (menuState === 'intro' && menuFrame >= stateData.frames) {
+                    menuState = 'loop';
+                    menuFrame = 0;
+                } else if (menuState === 'loop' && menuFrame >= stateData.frames) {
+                    menuFrame = 0; // Loop the animation
+                } else if (menuState === 'outro' && menuFrame >= stateData.frames) {
+                    menuState = 'inactive';
+                    startGame();
+                }
+            }
+        }
+
+        function drawMenu() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            let currentImage;
+            let stateData;
+
+            if (menuState === 'intro') {
+                currentImage = images.menuIntro;
+                stateData = animationStates.menuIntro;
+            } else if (menuState === 'loop') {
+                currentImage = images.menuLoop;
+                stateData = animationStates.menuLoop;
+            } else if (menuState === 'outro') {
+                currentImage = images.menuOutro;
+                stateData = animationStates.menuOutro;
+            }
+
+            if (currentImage && currentImage.complete && currentImage.naturalWidth > 0) {
+                const columns = stateData.columns;
+                const frameX = menuFrame % columns;
+                const frameY = Math.floor(menuFrame / columns);
+                const sourceX = frameX * stateData.spriteWidth;
+                const sourceY = frameY * stateData.spriteHeight;
+                ctx.drawImage(currentImage, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, 0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        function startGame() {
+            gameStarted = true;
+            sounds.start.play();
+            sounds.roll.play();
+            sounds.track.play();
+            effectsArray.push(new RunCloud());
+            lastTime = performance.now();
+            gameLoop(lastTime);
+        }
+
         function menuLoop(currentTime) {
             if (!lastTime) lastTime = currentTime;
             const deltaTime = (currentTime - lastTime) / 1000;
