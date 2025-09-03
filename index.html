@@ -136,9 +136,9 @@
             teleportGold: { frames: 20, columns: 5, frameDuration: 0.05 },
             shuriken: { frames: 6, columns: 3, frameDuration: 0.05 },
             runCloud: { frames: 24, columns: 5, frameDuration: 0.08},
-            menuIntro: { frames: 28, columns: 4, frameDuration: 0.05, spriteWidth: 256, spriteHeight: 512 },
-            menuLoop: { frames: 28, columns: 4, frameDuration: 0.05, spriteWidth: 256, spriteHeight: 512 },
-            menuOutro: { frames: 28, columns: 4, frameDuration: 0.05, spriteWidth: 256, spriteHeight: 512 }
+            menuIntro: { frames: 28, columns: 4, frameDuration: 0.05, spriteWidth: 800, spriteHeight: 400 },
+            menuLoop: { frames: 28, columns: 4, frameDuration: 0.05, spriteWidth: 800, spriteHeight: 400 },
+            menuOutro: { frames: 28, columns: 4, frameDuration: 0.05, spriteWidth: 800, spriteHeight: 400 }
         };
 
         // --- Asset Loading ---
@@ -237,7 +237,7 @@
             }
         });
 
-        // --- All Classes ---
+        // --- All Classes (Full logic restored) ---
         class VisualEffect { constructor() { this.markedForDeletion = false; } }
         class TeleportEffect extends VisualEffect {
             constructor(x, y, followsPlayer) {
@@ -361,101 +361,450 @@
              constructor() { this.x = canvas.width; this.frame = 0; this.frameTimer = 0; this.passed = false; }
              update(deltaTime) { this.x -= gameSpeed * this.speedModifier * deltaTime; }
         }
-        class Shuriken extends Obstacle { /* ... Full Class Logic ... */ }
-        class Lantern extends Obstacle { /* ... Full Class Logic ... */ }
-        class Rock extends Obstacle { /* ... Full Class Logic ... */ }
-        class TeleportGold extends Obstacle { /* ... Full Class Logic ... */ }
-        class BonusPoints extends Obstacle { /* ... Full Class Logic ... */ }
-        // Note: Full class logic for obstacles is omitted for brevity but is present in the final code.
-
-        function handleScenery(deltaTime) { /* ... Full Function Logic ... */ }
-        function handleObstacles(deltaTime) { /* ... Full Function Logic ... */ }
-        function addScore(points, color = {r:0, g:100, b:0}) { /* ... Full Function Logic ... */ }
-        function checkCollisionsAndScore() { /* ... Full Function Logic ... */ }
-        function resetGameForNextLevel() { /* ... Full Function Logic ... */ }
-
-        // --- Update and Draw Functions ---
-        function update(deltaTime) { /* ... Full Function Logic ... */ }
-        function draw() { /* ... Full Function Logic ... */ }
-
-        // --- Menu Loop ---
-        function updateMenu(deltaTime) {
-            menuFrameTimer += deltaTime;
-            let stateData;
-            if (menuState === 'intro') stateData = animationStates.menuIntro;
-            else if (menuState === 'loop') stateData = animationStates.menuLoop;
-            else if (menuState === 'outro') stateData = animationStates.menuOutro;
-
-            if (menuFrameTimer >= stateData.frameDuration) {
-                menuFrame++;
-                menuFrameTimer = 0;
-                
-                if (menuState === 'intro' && menuFrame >= stateData.frames) {
-                    menuState = 'loop';
-                    menuFrame = 0;
-                } else if (menuState === 'loop' && menuFrame >= stateData.frames) {
-                    menuFrame = 0; // Loop the animation
-                } else if (menuState === 'outro' && menuFrame >= stateData.frames) {
-                    menuState = 'inactive';
-                    startGame();
+        class Shuriken extends Obstacle {
+            constructor() {
+                super();
+                this.image = images.shuriken;
+                this.spriteWidth = 50; this.spriteHeight = 50;
+                this.width = 70; this.height = 70;
+                this.y = SHURIKEN_FLYING_HEIGHTS[Math.floor(Math.random() * SHURIKEN_FLYING_HEIGHTS.length)];
+                this.speedModifier = 1.1; this.hitbox = { offsetX: 10, offsetY: 10, width: 50, height: 50 };
+            }
+            update(deltaTime) {
+                super.update(deltaTime);
+                this.frameTimer += deltaTime;
+                const stateData = animationStates.shuriken;
+                if (this.frameTimer >= stateData.frameDuration) {
+                    this.frame = (this.frame + 1) % stateData.frames;
+                    this.frameTimer = 0;
+                }
+            }
+            draw() {
+                if (this.image.complete && this.image.naturalWidth > 0) {
+                    const stateData = animationStates.shuriken;
+                    const columns = stateData.columns;
+                    const frameX = this.frame % columns;
+                    const frameY = Math.floor(this.frame / columns);
+                    const sourceX = frameX * this.spriteWidth;
+                    const sourceY = frameY * this.spriteHeight;
+                    ctx.drawImage(this.image, sourceX, sourceY, this.spriteWidth, this.spriteHeight, this.x, this.y, this.width, this.height);
+                    if (DEBUG_MODE) { ctx.strokeRect(this.x + this.hitbox.offsetX, this.y + this.hitbox.offsetY, this.hitbox.width, this.hitbox.height); }
+                }
+            }
+        }
+        class Lantern extends Obstacle {
+            constructor() {
+                super();
+                this.image = images.lantern;
+                this.width = 90; this.height = 90;
+                this.y = PLAYER_GROUND_LEVEL + PLAYER_DRAW_HEIGHT - this.height - 1;
+                this.speedModifier = 1.0;
+                this.hitbox = { offsetX: 18, offsetY: 10, width: 55, height: 65 };
+            }
+             draw() {
+                if (this.image.complete && this.image.naturalWidth > 0) {
+                    ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
+                    if (DEBUG_MODE) { ctx.strokeRect(this.x + this.hitbox.offsetX, this.y + this.hitbox.offsetY, this.hitbox.width, this.hitbox.height); }
+                }
+             }
+        }
+        class Rock extends Obstacle {
+            constructor() {
+                super();
+                this.image = images.rock;
+                this.width = 140; this.height = 130;
+                this.y = PLAYER_GROUND_LEVEL + PLAYER_DRAW_HEIGHT - this.height + 20;
+                this.speedModifier = 1.0;
+                this.hitbox = { offsetX: 35, offsetY: 45 , width: 85, height: 60 };
+            }
+            draw() {
+                 if (this.image.complete && this.image.naturalWidth > 0) {
+                    ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
+                    if (DEBUG_MODE) { ctx.strokeRect(this.x + this.hitbox.offsetX, this.y + this.hitbox.offsetY, this.hitbox.width, this.hitbox.height); }
+                }
+            }
+        }
+        class TeleportGold extends Obstacle {
+            constructor() {
+                super();
+                this.image = images.teleportGold;
+                this.spriteWidth = 80; this.spriteHeight = 80;
+                this.width = 60; this.height = 60;
+                this.y = SHURIKEN_FLYING_HEIGHTS[Math.floor(Math.random() * SHURIKEN_FLYING_HEIGHTS.length)];
+                this.speedModifier = 1; this.hitbox = { offsetX: 0, offsetY: 0, width: 60, height: 60 };
+            }
+            update(deltaTime) {
+                super.update(deltaTime);
+                this.frameTimer += deltaTime;
+                const stateData = animationStates.teleportGold;
+                if (this.frameTimer >= stateData.frameDuration) {
+                    this.frame = (this.frame + 1) % stateData.frames;
+                    this.frameTimer = 0;
+                }
+            }
+            draw() {
+                if (this.image.complete && this.image.naturalWidth > 0) {
+                    const stateData = animationStates.teleportGold;
+                    const columns = stateData.columns;
+                    const frameX = this.frame % columns;
+                    const frameY = Math.floor(this.frame / columns);
+                    const sourceX = frameX * this.spriteWidth;
+                    const sourceY = frameY * this.spriteHeight;
+                    ctx.drawImage(this.image, sourceX, sourceY, this.spriteWidth, this.spriteHeight, this.x, this.y, this.width, this.height);
+                }
+            }
+        }
+        class BonusPoints extends Obstacle {
+            constructor() {
+                super();
+                this.image = Math.random() < 0.5 ? images.apple : images.carrot;
+                this.width = 80; this.height = 80;
+                this.y = SHURIKEN_FLYING_HEIGHTS[Math.floor(Math.random() * SHURIKEN_FLYING_HEIGHTS.length)];
+                this.speedModifier = 1;
+                this.hitbox = { offsetX: 0, offsetY: 0, width: 80, height: 80 };
+            }
+            draw() {
+                if (this.image.complete && this.image.naturalWidth > 0) {
+                    ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
                 }
             }
         }
 
-        function drawMenu() {
+        function handleScenery(deltaTime) {
+            sceneryArray.forEach(item => item.update(deltaTime));
+            sceneryArray = sceneryArray.filter(item => item.x > -item.width);
+            if (gameOver || isRestarting) return;
+            const minMountainSpawnDistance = canvas.width;
+            const mountainSpawnChance = 0.005;
+            let canSpawnMountain = sceneryArray.length === 0 || sceneryArray[sceneryArray.length - 1].x < canvas.width - minMountainSpawnDistance;
+            if (canSpawnMountain && Math.random() < mountainSpawnChance) {
+                sceneryArray.push(new Mountain());
+            }
+        }
+        function handleObstacles(deltaTime) {
+            obstaclesArray.forEach(obstacle => obstacle.update(deltaTime));
+            if (gameOver || isRestarting) return;
+            const minSpawnDistance = canvas.width / 1.2;
+            const spawnChance = 0.015;
+            let canSpawn = (obstaclesArray.length === 0 && !isRestarting) || (obstaclesArray.length > 0 && obstaclesArray[obstaclesArray.length - 1].x < canvas.width - minSpawnDistance);
+            if (canSpawn && Math.random() < spawnChance) {
+                let currentMilestoneKey = '0';
+                if (score < 3000) currentMilestoneKey = '3000';
+                else if (score < 6000) currentMilestoneKey = '6000';
+                else if (score < 9000) currentMilestoneKey = '9000';
+                else if (score < 12000) currentMilestoneKey = '12000';
+                else if (score < 15000) currentMilestoneKey = '15000';
+                else if (score < 19000) currentMilestoneKey = '19000';
+                else if (score < 21000) currentMilestoneKey = '21000';
+                let bonusSpawned = false;
+                if (bonusLimits.teleportGold[currentMilestoneKey] && bonusSpawns.teleportGold[currentMilestoneKey] < bonusLimits.teleportGold[currentMilestoneKey] && Math.random() < 0.15) {
+                    obstaclesArray.push(new TeleportGold());
+                    bonusSpawns.teleportGold[currentMilestoneKey]++;
+                    bonusSpawned = true;
+                } 
+                else if (bonusLimits.bonusPoints[currentMilestoneKey] && bonusSpawns.bonusPoints[currentMilestoneKey] < bonusLimits.bonusPoints[currentMilestoneKey] && Math.random() < 0.25) {
+                    obstaclesArray.push(new BonusPoints());
+                    bonusSpawns.bonusPoints[currentMilestoneKey]++;
+                    bonusSpawned = true;
+                }
+                if (!bonusSpawned) {
+                    const obstacleType = Math.random();
+                    if (obstacleType < 0.4) obstaclesArray.push(new Shuriken());
+                    else if (Math.random() < 0.5) obstaclesArray.push(new Lantern());
+                    else obstaclesArray.push(new Rock());
+                }
+            }
+        }
+        function addScore(points, color = {r:0, g:100, b:0}) {
+            const oldScore = score;
+            score += points;
+            if (Math.floor(score / 1000) > Math.floor(oldScore / 1000)) {
+                sounds.kabuki.play();
+            }
+            if (score >= scoreMilestone * 3000) {
+                resetGameForNextLevel();
+                return true;
+            }
+            floatingScores.push(new FloatingScore(points, player.x + player.width / 2, player.y, color));
+            return false;
+        }
+        function checkCollisionsAndScore() {
+            if (gameOver) return;
+            const playerHitbox = player.isCrouching ? player.crouchHitbox : player.hitbox;
+            const px = player.x + playerHitbox.offsetX;
+            const py = player.y + playerHitbox.offsetY;
+            const pw = playerHitbox.width;
+            const ph = playerHitbox.height;
+            for (let i = obstaclesArray.length - 1; i >= 0; i--) {
+                const obstacle = obstaclesArray[i];
+                const ox = obstacle.x + obstacle.hitbox.offsetX;
+                const oy = obstacle.y + obstacle.hitbox.offsetY;
+                const ow = obstacle.hitbox.width;
+                const oh = obstacle.hitbox.height;
+                if (px < ox + ow && px + pw > ox && py < oy + oh && py + ph > oy) {
+                    if (obstacle instanceof TeleportGold) {
+                        teleportCharges++;
+                        sounds.secret.currentTime = 0;
+                        sounds.secret.play();
+                        obstaclesArray.splice(i, 1);
+                    } else if (obstacle instanceof BonusPoints) {
+                        const points = Math.floor(Math.random() * 151) + 150;
+                        const didReset = addScore(points, {r: 0, g: 100, b: 255});
+                        sounds.eat.currentTime = 0;
+                        sounds.eat.play();
+                        obstaclesArray.splice(i, 1);
+                        if (didReset) return;
+                    } else if (teleportCharges > 0) {
+                        teleportCharges--;
+                        player.isTeleporting = true;
+                        sounds.teleport.currentTime = 0;
+                        sounds.teleport.play();
+                        effectsArray.push(new TeleportEffect(player.x, player.y, player.isJumping));
+                        obstaclesArray.splice(i, 1);
+                    } else {
+                        gameOver = true;
+                        player.state = 'fall';
+                        player.frame = 0;
+                        sounds.end.play();
+                        sounds.fail.play();
+                        sounds.track.pause();
+                        sounds.track.currentTime = 0;
+                        setTimeout(() => { canRestart = true; }, 2000);
+                    }
+                }
+                if (!obstacle.passed && obstacle.x + obstacle.width < player.x) {
+                    obstacle.passed = true;
+                    if (!(obstacle instanceof TeleportGold) && !(obstacle instanceof BonusPoints)) {
+                        sounds.woosh.currentTime = 0;
+                        sounds.woosh.play();
+                        const points = 100;
+                        const didReset = addScore(points);
+                        if (didReset) return;
+                    }
+                }
+            }
+        }
+        function resetGameForNextLevel() {
+            gameSpeed = 300;
+            obstaclesArray = [];
+            floatingScores = [];
+            sounds.bell.play();
+            scoreMilestone++;
+            if (score >= 21000) {
+                gameWon = true;
+                inversionTarget = 1;
+                sounds.track.pause();
+                setTimeout(() => { canRestart = true; }, 2000);
+            } else if (scoreMilestone % 2 === 0) { // 3k, 9k, 15k...
+                 inversionTarget = 1;
+            } else { // 6k, 12k...
+                 inversionTarget = 0;
+            }
+            if (!player.isJumping) {
+                player.state = 'run';
+                player.frame = 0;
+            }
+        }
+        function update(deltaTime) {
+            if (!gameStarted) return;
+            if (isRestarting) {
+                restartFadeAmount += 2 * fadeDirection * deltaTime;
+                if (restartFadeAmount >= 1 && fadeDirection === 1) {
+                    fadeDirection = -1;
+                    gameOver = false; gameWon = false; gameSpeed = 300; score = 0; gameFrame = 0;
+                    obstaclesArray = []; sceneryArray = []; effectsArray = []; floatingScores = [];
+                    scoreMilestone = 1; teleportCharges = 0; inversionAmount = 0; inversionTarget = 0;
+                    bonusSpawns = {
+                        teleportGold: { '3000': 0, '9000': 0, '15000': 0 },
+                        bonusPoints: { '3000': 0, '6000': 0, '9000': 0, '12000': 0, '15000': 0, '19000': 0, '21000': 0 }
+                    };
+                    player.y = PLAYER_GROUND_LEVEL; player.state = 'run'; player.frame = 0; player.frameTimer = 0;
+                    effectsArray.push(new RunCloud());
+                    sounds.track.currentTime = 0; sounds.track.play();
+                }
+                if (restartFadeAmount <= 0 && fadeDirection === -1) {
+                    isRestarting = false; fadeDirection = 1;
+                }
+                return;
+            }
+            if (gameOver || gameWon) {
+                if (gameSpeed > 0) gameSpeed -= 300 * deltaTime;
+                else gameSpeed = 0;
+                effectsArray.forEach(effect => { if(effect instanceof RunCloud) effect.startFading() });
+            } else {
+                gameSpeed += speedIncreaseRate * 60 * deltaTime;
+            }
+            const transitionSpeed = 1 / 4;
+            if (inversionAmount < inversionTarget) {
+                inversionAmount = Math.min(inversionTarget, inversionAmount + transitionSpeed * deltaTime);
+            } else if (inversionAmount > inversionTarget) {
+                inversionAmount = Math.max(inversionTarget, inversionAmount - transitionSpeed * deltaTime);
+            }
+            groundX -= gameSpeed * deltaTime;
+            bg1X -= gameSpeed * 0.1 * deltaTime;
+            bg2X -= gameSpeed * 0.03 * deltaTime;
+            grassX -= gameSpeed * GRASS_SPEED_MODIFIER * deltaTime;
+            const bg1_scaledWidth = images.background1 ? images.background1.width * BG1_SCALE : 0;
+            const bg2_scaledWidth = images.background2 ? images.background2.width * BG2_SCALE : 0;
+            const grass_scaledWidth = images.grass ? images.grass.width * GRASS_SCALE : 0;
+            if (groundX <= -images.ground.width) groundX += images.ground.width;
+            if (bg1_scaledWidth > 0 && bg1X <= -bg1_scaledWidth) bg1X += bg1_scaledWidth;
+            if (bg2_scaledWidth > 0 && bg2X <= -bg2_scaledWidth) bg2X += bg2_scaledWidth;
+            if (grass_scaledWidth > 0 && grassX <= -grass_scaledWidth) grassX += grass_scaledWidth;
+            if (player.isJumping) {
+                player.velocityY += GRAVITY * deltaTime;
+                player.y += player.velocityY * deltaTime;
+            }
+            if (player.y > PLAYER_GROUND_LEVEL) {
+                player.y = PLAYER_GROUND_LEVEL;
+                if(player.isJumping) {
+                    effectsArray.forEach(effect => { if(effect instanceof RunCloud) effect.activate() });
+                }
+                player.isJumping = false;
+                player.velocityY = 0;
+                if (!player.isCrouching && !gameOver) { player.state = 'run'; }
+            }
+            player.frameTimer += deltaTime;
+            const stateData = animationStates[player.state];
+            let dynamicFrameDuration = stateData.frameDuration;
+            if (player.state === 'run' || player.state === 'crouch') {
+                dynamicFrameDuration = Math.max(0.02, stateData.frameDuration - (gameSpeed / 10000));
+            }
+            if (player.frameTimer >= dynamicFrameDuration) {
+                if (player.state === 'fall') {
+                    if (player.frame < stateData.frames - 1) player.frame++;
+                } else {
+                    player.frame = (player.frame + 1) % stateData.frames;
+                }
+                player.frameTimer = 0;
+            }
+            effectsArray.forEach(effect => effect.update(deltaTime));
+            effectsArray = effectsArray.filter(effect => !effect.markedForDeletion);
+        }
+        function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            let currentImage;
-            let stateData;
-
-            if (menuState === 'intro') {
-                currentImage = images.menuIntro;
-                stateData = animationStates.menuIntro;
-            } else if (menuState === 'loop') {
-                currentImage = images.menuLoop;
-                stateData = animationStates.menuLoop;
-            } else if (menuState === 'outro') {
-                currentImage = images.menuOutro;
-                stateData = animationStates.menuOutro;
+            ctx.save();
+            ctx.filter = `invert(${inversionAmount * 100}%)`;
+            ctx.fillStyle = '#f0f0f0';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            if (images.background2 && images.background2.complete && images.background2.naturalWidth > 0) {
+                const scaledWidth = images.background2.width * BG2_SCALE;
+                const scaledHeight = (images.background2.naturalHeight / images.background2.naturalWidth) * scaledWidth;
+                ctx.drawImage(images.background2, Math.floor(bg2X), BG2_Y_POS, scaledWidth, scaledHeight);
+                ctx.drawImage(images.background2, Math.floor(bg2X + scaledWidth), BG2_Y_POS, scaledWidth, scaledHeight);
+                ctx.drawImage(images.background2, Math.floor(bg2X + scaledWidth * 2), BG2_Y_POS, scaledWidth, scaledHeight);
             }
-
-            if (currentImage && currentImage.complete && currentImage.naturalWidth > 0) {
-                const columns = stateData.columns;
-                const frameX = menuFrame % columns;
-                const frameY = Math.floor(menuFrame / columns);
-                const sourceX = frameX * stateData.spriteWidth;
-                const sourceY = frameY * stateData.spriteHeight;
-                ctx.drawImage(currentImage, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, 0, 0, canvas.width, canvas.height);
+            sceneryArray.forEach(item => item.draw());
+            if (images.background1 && images.background1.complete && images.background1.naturalWidth > 0) {
+                const scaledWidth = images.background1.width * BG1_SCALE;
+                const scaledHeight = (images.background1.naturalHeight / images.background1.naturalWidth) * scaledWidth;
+                ctx.drawImage(images.background1, Math.floor(bg1X), BG1_Y_POS, scaledWidth, scaledHeight);
+                ctx.drawImage(images.background1, Math.floor(bg1X + scaledWidth), BG1_Y_POS, scaledWidth, scaledHeight);
+                ctx.drawImage(images.background1, Math.floor(bg1X + scaledWidth * 2), BG1_Y_POS, scaledWidth, scaledHeight);
+            }
+            if (images.ground.complete && images.ground.naturalWidth > 0) {
+                const groundY = canvas.height - GROUND_HEIGHT_PHYSICS + VISUAL_GROUND_Y_OFFSET;
+                ctx.drawImage(images.ground, Math.floor(groundX), groundY, images.ground.width, VISUAL_GROUND_HEIGHT);
+                ctx.drawImage(images.ground, Math.floor(groundX + images.ground.width), groundY, images.ground.width, VISUAL_GROUND_HEIGHT);
+                ctx.drawImage(images.ground, Math.floor(groundX + images.ground.width * 2), groundY, images.ground.width, VISUAL_GROUND_HEIGHT);
+            }
+            obstaclesArray.forEach(obstacle => obstacle.draw());
+            effectsArray.forEach(effect => effect.draw());
+            if (!player.isTeleporting) {
+                const playerStateData = animationStates[player.state];
+                if (images[player.state] && images[player.state].complete) {
+                    const columns = playerStateData.columns;
+                    const frameX = player.frame % columns;
+                    const frameY = Math.floor(player.frame / columns);
+                    const sourceX = frameX * PLAYER_SPRITE_WIDTH;
+                    const sourceY = frameY * PLAYER_SPRITE_HEIGHT;
+                    ctx.drawImage(images[player.state], sourceX, sourceY, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT, player.x, player.y, player.width, player.height);
+                    if (DEBUG_MODE) {
+                        ctx.strokeStyle = 'black';
+                        ctx.lineWidth = 2;
+                        let currentHitbox = player.isCrouching ? player.crouchHitbox : player.hitbox;
+                        ctx.strokeRect(player.x + currentHitbox.offsetX, player.y + currentHitbox.offsetY, currentHitbox.width, currentHitbox.height);
+                    }
+                }
+            }
+            if (images.grass && images.grass.complete && images.grass.naturalWidth > 0) {
+                const scaledWidth = images.grass.width * GRASS_SCALE;
+                const scaledHeight = images.grass.height * GRASS_SCALE;
+                ctx.drawImage(images.grass, Math.floor(grassX), GRASS_Y_POS, scaledWidth, scaledHeight);
+                ctx.drawImage(images.grass, Math.floor(grassX + scaledWidth), GRASS_Y_POS, scaledWidth, scaledHeight);
+                ctx.drawImage(images.grass, Math.floor(grassX + scaledWidth * 2), GRASS_Y_POS, scaledWidth, scaledHeight);
+            }
+            for (let i = floatingScores.length - 1; i >= 0; i--) {
+                floatingScores[i].update(1/60);
+                floatingScores[i].draw();
+                if (floatingScores[i].opacity <= 0) { floatingScores.splice(i, 1); }
+            }
+            ctx.fillStyle = 'black';
+            ctx.font = '30px "Segoe UI"';
+            ctx.textAlign = 'right';
+            ctx.fillText(`Score: ${score}`, canvas.width - 20, 40);
+            ctx.textAlign = 'left';
+            if (teleportCharges > 0 && images.teleportLogo.complete) {
+                ctx.drawImage(images.teleportLogo, 20, 15, 40, 40);
+                ctx.fillText(`x${teleportCharges}`, 65, 45);
+            }
+            ctx.textAlign = 'center';
+            if (!gameStarted) {
+                if (images.mainMenu && images.mainMenu.complete) {
+                    ctx.drawImage(images.mainMenu, 0, 0, canvas.width, canvas.height);
+                }
+            }
+            if (gameOver) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.font = '40px "Segoe UI"';
+                ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
+                if (canRestart) {
+                    ctx.font = '20px "Segoe UI"';
+                    ctx.fillText('press space to restart', canvas.width / 2, canvas.height / 2 + 20);
+                }
+            }
+            if (gameWon) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 1)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = 'black';
+                ctx.font = '40px "Segoe UI"';
+                ctx.fillText('YOU WIN', canvas.width / 2, canvas.height / 2 - 20);
+                if (canRestart) {
+                    ctx.font = '20px "Segoe UI"';
+                    ctx.fillText('Press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
+                }
+            }
+            ctx.restore();
+            if (isRestarting) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${restartFadeAmount})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
             }
         }
 
-        function startGame() {
-            gameStarted = true;
-            sounds.start.play();
-            sounds.roll.play();
-            sounds.track.play();
-            effectsArray.push(new RunCloud());
-            lastTime = performance.now();
-            gameLoop(lastTime);
-        }
-
+        // --- Game/Menu Loops ---
         function menuLoop(currentTime) {
             if (!lastTime) lastTime = currentTime;
             const deltaTime = (currentTime - lastTime) / 1000;
             lastTime = currentTime;
-
             updateMenu(deltaTime);
             drawMenu();
-            
-            if (menuState !== 'inactive') {
-                requestAnimationFrame(menuLoop);
-            }
+            if (menuState !== 'inactive') { requestAnimationFrame(menuLoop); }
         }
-
-        // --- Main Game Loop ---
-        function gameLoop(currentTime) { /* ... Full Function Logic ... */ }
+        function gameLoop(currentTime) {
+            if (!lastTime) lastTime = currentTime;
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+            update(deltaTime);
+            handleScenery(deltaTime);
+            handleObstacles(deltaTime);
+            checkCollisionsAndScore();
+            draw();
+            if (gameStarted) requestAnimationFrame(gameLoop);
+        }
         
         function initialDraw() {
             if (assetsLoaded < totalAssets) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height); // Fix for duplicated loading text
                 ctx.fillStyle = 'black';
                 ctx.font = '20px "Segoe UI"';
                 ctx.textAlign = 'center';
@@ -473,3 +822,4 @@
     </script>
 </body>
 </html>
+
