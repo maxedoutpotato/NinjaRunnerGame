@@ -30,6 +30,7 @@
             /* This makes the canvas responsive */
             max-width: 100%;
             height: auto;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -105,7 +106,8 @@
         let score = 0;
         let floatingScores = [];
         let scoreMilestone = 1;
-        let scoreBounceTimer = 0; // For the 1000-point visual effect
+        let scoreBounceTimer = 0;
+        let teleportBounceTimer = 0; // For teleport counter effect
         let teleportCharges = 0;
         let inversionAmount = 0;
         let inversionTarget = 0;
@@ -132,6 +134,12 @@
             hitbox: { offsetX: 20, offsetY: 18, width: 75, height: 65 },
             crouchHitbox: { offsetX: 10, offsetY: 40, width: 83, height: 45 }
         };
+        
+        // --- Restart Button State ---
+        let restartButton = {
+            x: canvas.width - 90, y: canvas.height - 90, width: 80, height: 80,
+            frame: 0, frameTimer: 0, isHovered: false, isPressed: false
+        };
 
         // --- Animation Data ---
         const animationStates = {
@@ -145,7 +153,8 @@
             runCloud: { frames: 24, columns: 5, frameDuration: 0.08},
             menuIntro: { frames: 28, columns: 4, frameDuration: 0.04, spriteWidth: 500, spriteHeight: 250 },
             menuLoop: { frames: 28, columns: 4, frameDuration: 0.1, spriteWidth: 500, spriteHeight: 250 },
-            menuOutro: { frames: 28, columns: 4, frameDuration: 0.04, spriteWidth: 500, spriteHeight: 250 }
+            menuOutro: { frames: 28, columns: 4, frameDuration: 0.04, spriteWidth: 500, spriteHeight: 250 },
+            button: { frames: 10, columns: 4, frameDuration: 0.05, spriteWidth: 80, spriteHeight: 80 }
         };
 
         // --- Asset Loading ---
@@ -155,6 +164,7 @@
             menuIntro: 'Assets/Menu/Intro.png',
             menuLoop: 'Assets/Menu/Loop.png',
             menuOutro: 'Assets/Menu/Outro.png',
+            button: 'Assets/Menu/Button.png',
             ground: 'Assets/Background/Ground.png',
             background1: 'Assets/Background/Background.1.png',
             background2: 'Assets/Background/Background.2.png',
@@ -206,7 +216,7 @@
         document.addEventListener('keydown', function(event) {
             if (isRestarting) return;
 
-            if (event.code === 'Space') {
+            if (event.code === 'Space' || event.code === 'ArrowUp') {
                 if ((gameOver || gameWon) && canRestart) {
                     isRestarting = true;
                     canRestart = false;
@@ -234,7 +244,7 @@
             
             if (gameOver || !gameStarted) return;
 
-            if (event.code === 'KeyS' && !player.isJumping && !player.isCrouching) {
+            if ((event.code === 'KeyS' || event.code === 'ArrowDown') && !player.isJumping && !player.isCrouching) {
                 player.isCrouching = true;
                 player.state = 'crouch';
                 sounds.crouch.currentTime = 0;
@@ -243,11 +253,44 @@
         });
         document.addEventListener('keyup', function(event) {
             if (gameOver || isRestarting || !gameStarted) return;
-            if (event.code === 'KeyS') {
+            if (event.code === 'KeyS' || event.code === 'ArrowDown') {
                 player.isCrouching = false;
                 player.state = 'run';
             }
         });
+
+        // --- Mouse/Touch Controls for Button ---
+        function getMousePos(canvas, evt) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: evt.clientX - rect.left,
+                y: evt.clientY - rect.top
+            };
+        }
+        canvas.addEventListener('mousemove', (evt) => {
+            if (!canRestart) return;
+            const mousePos = getMousePos(canvas, evt);
+            if (mousePos.x >= restartButton.x && mousePos.x <= restartButton.x + restartButton.width &&
+                mousePos.y >= restartButton.y && mousePos.y <= restartButton.y + restartButton.height) {
+                restartButton.isHovered = true;
+                canvas.style.cursor = 'pointer';
+            } else {
+                restartButton.isHovered = false;
+                canvas.style.cursor = 'default';
+            }
+        });
+        canvas.addEventListener('mousedown', (evt) => {
+             if (restartButton.isHovered && canRestart) {
+                restartButton.isPressed = true;
+            }
+        });
+         canvas.addEventListener('mouseup', (evt) => {
+             if (restartButton.isPressed) {
+                restartButton.isPressed = false;
+                window.location.reload();
+            }
+        });
+
 
         // --- All Classes (Full logic restored) ---
         class VisualEffect { constructor() { this.markedForDeletion = false; } }
@@ -352,7 +395,6 @@
                 const plusSign = '+';
                 const valueText = this.value.toString();
 
-                // Measure widths with respective fonts to center the whole text block
                 ctx.font = 'bold 24px "Segoe UI"';
                 const plusWidth = ctx.measureText(plusSign).width;
                 ctx.font = '24px Amanojaku, "Segoe UI"';
@@ -360,11 +402,9 @@
                 const totalWidth = plusWidth + valueWidth;
                 const startX = this.x - totalWidth / 2;
 
-                // Draw '+' with standard font
                 ctx.font = 'bold 24px "Segoe UI"';
                 ctx.fillText(plusSign, startX + plusWidth / 2, this.y);
                 
-                // Draw the number with custom font
                 ctx.font = '24px Amanojaku, "Segoe UI"';
                 ctx.fillText(valueText, startX + plusWidth + valueWidth / 2, this.y);
                 ctx.restore();
@@ -577,6 +617,7 @@
                 if (px < ox + ow && px + pw > ox && py < oy + oh && py + ph > oy) {
                     if (obstacle instanceof TeleportGold) {
                         teleportCharges++;
+                        teleportBounceTimer = 1; // Trigger bounce effect for 1 second
                         sounds.secret.currentTime = 0;
                         sounds.secret.play();
                         obstaclesArray.splice(i, 1);
@@ -675,9 +716,22 @@
                 gameSpeed += speedIncreaseRate * 60 * deltaTime;
             }
 
-            if (scoreBounceTimer > 0) {
-                scoreBounceTimer -= deltaTime;
+            if (scoreBounceTimer > 0) scoreBounceTimer -= deltaTime;
+            if (teleportBounceTimer > 0) teleportBounceTimer -= deltaTime;
+            
+            if (canRestart) {
+                restartButton.frameTimer += deltaTime;
+                if (restartButton.isHovered) {
+                    const stateData = animationStates.button;
+                    if (restartButton.frameTimer >= stateData.frameDuration) {
+                        restartButton.frame = (restartButton.frame + 1) % stateData.frames;
+                        restartButton.frameTimer = 0;
+                    }
+                } else {
+                    restartButton.frame = 0;
+                }
             }
+
 
             const transitionSpeed = 1 / 4;
             if (inversionAmount < inversionTarget) {
@@ -822,11 +876,21 @@
                 ctx.textAlign = 'left';
                 if (teleportCharges > 0 && images.teleportLogo.complete) {
                     ctx.drawImage(images.teleportLogo, 20, 15, 40, 40);
-                    ctx.font = '30px Amanojaku, "Segoe UI"';
+
+                    let teleportFontSize = 30;
+                    if(teleportBounceTimer > 0) {
+                        const bounceScale = 1 + Math.sin(teleportBounceTimer * Math.PI) * 0.5;
+                        teleportFontSize *= bounceScale;
+                        ctx.fillStyle = `hsl(${ (1 - teleportBounceTimer) * 360 }, 100%, 50%)`;
+                    } else {
+                        ctx.fillStyle = 'black';
+                    }
+
+                    ctx.font = `${teleportFontSize}px Amanojaku, "Segoe UI"`;
                     ctx.fillText('x', 65, 45);
                     const x_width = ctx.measureText('x').width;
 
-                    ctx.font = 'bold 30px "Segoe UI"';
+                    ctx.font = `bold ${teleportFontSize}px "Segoe UI"`;
                     ctx.fillText(teleportCharges, 65 + x_width, 45);
                 }
                 ctx.textAlign = 'center';
@@ -838,6 +902,7 @@
                     if (canRestart) {
                         ctx.font = 'bold 20px "Segoe UI"';
                         ctx.fillText('press space to restart', canvas.width / 2, canvas.height / 2 + 20);
+                        drawRestartButton();
                     }
                 }
                 if (gameWon) {
@@ -849,6 +914,7 @@
                     if (canRestart) {
                         ctx.font = 'bold 20px "Segoe UI"';
                         ctx.fillText('Press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
+                        drawRestartButton();
                     }
                 }
                 ctx.restore();
@@ -857,6 +923,32 @@
             if (isRestarting) {
                 ctx.fillStyle = `rgba(255, 255, 255, ${restartFadeAmount})`;
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+        
+        function drawRestartButton() {
+            if (images.button && images.button.complete) {
+                const stateData = animationStates.button;
+                const columns = stateData.columns;
+                const frameX = restartButton.frame % columns;
+                const frameY = Math.floor(restartButton.frame / columns);
+                const sourceX = frameX * stateData.spriteWidth;
+                const sourceY = frameY * stateData.spriteHeight;
+                
+                let drawWidth = restartButton.width;
+                let drawHeight = restartButton.height;
+                let drawX = restartButton.x;
+                let drawY = restartButton.y;
+
+                if (restartButton.isPressed) {
+                    const scale = 0.9;
+                    drawWidth *= scale;
+                    drawHeight *= scale;
+                    drawX += (restartButton.width - drawWidth) / 2;
+                    drawY += (restartButton.height - drawHeight) / 2;
+                }
+
+                ctx.drawImage(images.button, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, drawX, drawY, drawWidth, drawHeight);
             }
         }
 
@@ -879,13 +971,11 @@
                     menuFrame = 0; // Loop the animation
                 } else if (menuState === 'outro' && menuFrame >= stateData.frames) {
                     menuState = 'inactive';
-                    // The game has already started, so we just stop the menu logic
                 }
             }
         }
 
         function drawMenu() {
-            // This function is now used for all menu drawing
             let currentImage;
             let stateData;
             if (menuState === 'intro') {
@@ -905,7 +995,7 @@
                 const frameY = Math.floor(menuFrame / columns);
                 const sourceX = frameX * stateData.spriteWidth;
                 const sourceY = frameY * stateData.spriteHeight;
-                if(menuState !== 'outro') ctx.clearRect(0, 0, canvas.width, canvas.height); // Don't clear if it's the outro
+                if(menuState !== 'outro') ctx.clearRect(0, 0, canvas.width, canvas.height);
                 ctx.drawImage(currentImage, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, 0, 0, canvas.width, canvas.height);
             }
         }
