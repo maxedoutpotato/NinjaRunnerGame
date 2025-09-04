@@ -815,7 +815,6 @@
                 if (menuState === 'intro' && menuFrame >= stateData.frames) {
                     menuState = 'loop';
                     menuFrame = 0;
-                    sounds.gateClose.play(); // Play gate sound when intro finishes
                 } else if (menuState === 'loop' && menuFrame >= stateData.frames) {
                     menuFrame = 0; // Loop the animation
                 } else if (menuState === 'outro' && menuFrame >= stateData.frames) {
