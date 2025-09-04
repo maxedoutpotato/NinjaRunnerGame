@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ninja Runner</title>
     <style>
+        /* Define the custom font */
+        @font-face {
+            font-family: 'Amanojaku';
+            src: url('Amanojaku Demo.otf') format('opentype');
+        }
+
         /* Basic styling to center the game and make it look clean */
         body {
             display: flex;
@@ -339,7 +345,7 @@
             }
             draw() {
                 ctx.fillStyle = `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${this.opacity})`;
-                ctx.font = '24px "Segoe UI"';
+                ctx.font = '24px Amanojaku, "Segoe UI"';
                 ctx.fillText(`+${this.value}`, this.x, this.y);
             }
         }
@@ -761,7 +767,7 @@
                     if (floatingScores[i].opacity <= 0) { floatingScores.splice(i, 1); }
                 }
                 ctx.fillStyle = 'black';
-                ctx.font = '30px "Segoe UI"';
+                ctx.font = '30px Amanojaku, "Segoe UI"';
                 ctx.textAlign = 'right';
                 ctx.fillText(`Score: ${score}`, canvas.width - 20, 40);
                 ctx.textAlign = 'left';
@@ -773,10 +779,10 @@
 
                 if (gameOver) {
                     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                    ctx.font = '40px "Segoe UI"';
+                    ctx.font = '40px Amanojaku, "Segoe UI"';
                     ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
                     if (canRestart) {
-                        ctx.font = '20px "Segoe UI"';
+                        ctx.font = '20px Amanojaku, "Segoe UI"';
                         ctx.fillText('press space to restart', canvas.width / 2, canvas.height / 2 + 20);
                     }
                 }
@@ -784,10 +790,10 @@
                     ctx.fillStyle = 'rgba(255, 255, 255, 1)';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                     ctx.fillStyle = 'black';
-                    ctx.font = '40px "Segoe UI"';
+                    ctx.font = '40px Amanojaku, "Segoe UI"';
                     ctx.fillText('YOU WIN', canvas.width / 2, canvas.height / 2 - 20);
                     if (canRestart) {
-                        ctx.font = '20px "Segoe UI"';
+                        ctx.font = '20px Amanojaku, "Segoe UI"';
                         ctx.fillText('Press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
                     }
                 }
@@ -889,6 +895,7 @@
                 return;
             }
             sounds.intro.play();
+            sounds.gateClose.play();
             lastTime = performance.now();
             mainLoop(lastTime);
         }
