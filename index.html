@@ -344,9 +344,21 @@
                 if (this.timer > 1.3) this.opacity -= 1.2 * deltaTime;
             }
             draw() {
+                ctx.save();
                 ctx.fillStyle = `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${this.opacity})`;
+                
+                const plusSign = '+';
+                const valueText = this.value.toString();
+
+                // Draw '+' with standard font
+                ctx.font = '24px "Segoe UI"';
+                ctx.fillText(plusSign, this.x, this.y);
+                const plusWidth = ctx.measureText(plusSign).width;
+                
+                // Draw the number with custom font
                 ctx.font = '24px Amanojaku, "Segoe UI"';
-                ctx.fillText(`+${this.value}`, this.x, this.y);
+                ctx.fillText(valueText, this.x + plusWidth, this.y);
+                ctx.restore();
             }
         }
         class SceneryObject {
@@ -767,13 +779,27 @@
                     if (floatingScores[i].opacity <= 0) { floatingScores.splice(i, 1); }
                 }
                 ctx.fillStyle = 'black';
-                ctx.font = '30px Amanojaku, "Segoe UI"';
+                
+                // Draw Score with mixed fonts
                 ctx.textAlign = 'right';
-                ctx.fillText(`Score: ${score}`, canvas.width - 20, 40);
+                ctx.font = '30px Amanojaku, "Segoe UI"';
+                const scoreNumberText = score.toString();
+                const scoreNumberWidth = ctx.measureText(scoreNumberText).width;
+                ctx.fillText(scoreNumberText, canvas.width - 20, 40);
+                
+                ctx.font = '30px "Segoe UI"';
+                ctx.fillText('SCORE: ', canvas.width - 20 - scoreNumberWidth, 40);
+
+                // Draw Teleport Counter with mixed fonts
                 ctx.textAlign = 'left';
                 if (teleportCharges > 0 && images.teleportLogo.complete) {
                     ctx.drawImage(images.teleportLogo, 20, 15, 40, 40);
-                    ctx.fillText(`x${teleportCharges}`, 65, 45);
+                    ctx.font = '30px Amanojaku, "Segoe UI"';
+                    ctx.fillText('x', 65, 45);
+                    const x_width = ctx.measureText('x').width;
+
+                    ctx.font = '30px "Segoe UI"';
+                    ctx.fillText(teleportCharges, 65 + x_width, 45);
                 }
                 ctx.textAlign = 'center';
 
@@ -782,7 +808,7 @@
                     ctx.font = '40px Amanojaku, "Segoe UI"';
                     ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
                     if (canRestart) {
-                        ctx.font = '20px Amanojaku, "Segoe UI"';
+                        ctx.font = '20px "Segoe UI"';
                         ctx.fillText('press space to restart', canvas.width / 2, canvas.height / 2 + 20);
                     }
                 }
@@ -793,7 +819,7 @@
                     ctx.font = '40px Amanojaku, "Segoe UI"';
                     ctx.fillText('YOU WIN', canvas.width / 2, canvas.height / 2 - 20);
                     if (canRestart) {
-                        ctx.font = '20px Amanojaku, "Segoe UI"';
+                        ctx.font = '20px "Segoe UI"';
                         ctx.fillText('Press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
                     }
                 }
