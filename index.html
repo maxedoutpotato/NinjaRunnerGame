@@ -30,7 +30,7 @@
             /* This makes the canvas responsive */
             max-width: 100%;
             height: auto;
-            cursor: pointer;
+            cursor: default; /* Default cursor */
         }
     </style>
 </head>
@@ -91,7 +91,8 @@
         let gameOver = false;
         let gameWon = false;
         let canRestart = false;
-        let isRestarting = false;
+        let isRestarting = false; // For fade transition
+        let isResetting = false; // For menu transition
         let restartFadeAmount = 0;
         let fadeDirection = 1;
         let groundX = 0;
@@ -107,7 +108,7 @@
         let floatingScores = [];
         let scoreMilestone = 1;
         let scoreBounceTimer = 0;
-        let teleportBounceTimer = 0; // For teleport counter effect
+        let teleportBounceTimer = 0;
         let teleportCharges = 0;
         let inversionAmount = 0;
         let inversionTarget = 0;
@@ -187,6 +188,7 @@
         const soundSources = {
             intro: 'Audio/Intro.mp3',
             gateClose: 'Audio/Gate.Close.mp3',
+            gecko: 'Audio/Gecko.mp3',
             start: 'Audio/Gong.Start.mp3', end: 'Audio/Gong.End.mp3', jump: 'Audio/Jump.mp3',
             roll: 'Audio/Roll.mp3', woosh: 'Audio/Woosh.mp3', kabuki: 'Audio/Kabuki.mp3',
             track: 'Audio/Track.mp3', fail: 'Audio/Fail.mp3', bell: 'Audio/Bell.mp3',
@@ -205,7 +207,7 @@
             for (const key in soundSources) {
                 sounds[key] = new Audio();
                 sounds[key].src = soundSources[key];
-                if (key === 'track' || key === 'intro') sounds[key].loop = true;
+                if (key === 'track' || key === 'intro' || key === 'gecko') sounds[key].loop = true;
                 sounds[key].oncanplaythrough = assetLoaded;
                 sounds[key].onerror = () => console.error(`Failed to load sound: ${soundSources[key]}`);
             }
@@ -214,7 +216,7 @@
 
         // --- Input Handling ---
         document.addEventListener('keydown', function(event) {
-            if (isRestarting) return;
+            if (isRestarting || isResetting) return;
 
             if (event.code === 'Space' || event.code === 'ArrowUp') {
                 if ((gameOver || gameWon) && canRestart) {
@@ -252,7 +254,7 @@
             }
         });
         document.addEventListener('keyup', function(event) {
-            if (gameOver || isRestarting || !gameStarted) return;
+            if (gameOver || isRestarting || !gameStarted || isResetting) return;
             if (event.code === 'KeyS' || event.code === 'ArrowDown') {
                 player.isCrouching = false;
                 player.state = 'run';
@@ -268,15 +270,27 @@
             };
         }
         canvas.addEventListener('mousemove', (evt) => {
-            if (!canRestart) return;
+            if (!canRestart) {
+                canvas.style.cursor = 'default';
+                return;
+            };
             const mousePos = getMousePos(canvas, evt);
-            if (mousePos.x >= restartButton.x && mousePos.x <= restartButton.x + restartButton.width &&
-                mousePos.y >= restartButton.y && mousePos.y <= restartButton.y + restartButton.height) {
+            const isHovering = (mousePos.x >= restartButton.x && mousePos.x <= restartButton.x + restartButton.width &&
+                mousePos.y >= restartButton.y && mousePos.y <= restartButton.y + restartButton.height);
+
+            if (isHovering && !restartButton.isHovered) {
                 restartButton.isHovered = true;
                 canvas.style.cursor = 'pointer';
-            } else {
+                if(sounds.gecko) {
+                    sounds.gecko.currentTime = 0;
+                    sounds.gecko.play();
+                }
+            } else if (!isHovering && restartButton.isHovered) {
                 restartButton.isHovered = false;
                 canvas.style.cursor = 'default';
+                 if(sounds.gecko) {
+                    sounds.gecko.pause();
+                }
             }
         });
         canvas.addEventListener('mousedown', (evt) => {
@@ -287,7 +301,13 @@
          canvas.addEventListener('mouseup', (evt) => {
              if (restartButton.isPressed) {
                 restartButton.isPressed = false;
-                window.location.reload();
+                isResetting = true;
+                menuState = 'intro';
+                menuFrame = 0;
+                menuFrameTimer = 0;
+                canRestart = false;
+                sounds.gateClose.play();
+                if(sounds.gecko) sounds.gecko.pause();
             }
         });
 
@@ -545,7 +565,7 @@
         function handleScenery(deltaTime) {
             sceneryArray.forEach(item => item.update(deltaTime));
             sceneryArray = sceneryArray.filter(item => item.x > -item.width);
-            if (gameOver || isRestarting) return;
+            if (gameOver || isRestarting || isResetting) return;
             const minMountainSpawnDistance = canvas.width;
             const mountainSpawnChance = 0.005;
             let canSpawnMountain = sceneryArray.length === 0 || sceneryArray[sceneryArray.length - 1].x < canvas.width - minMountainSpawnDistance;
@@ -555,7 +575,7 @@
         }
         function handleObstacles(deltaTime) {
             obstaclesArray.forEach(obstacle => obstacle.update(deltaTime));
-            if (gameOver || isRestarting) return;
+            if (gameOver || isRestarting || isResetting) return;
             const minSpawnDistance = canvas.width / 1.2;
             const spawnChance = 0.015;
             let canSpawn = (obstaclesArray.length === 0 && !isRestarting) || (obstaclesArray.length > 0 && obstaclesArray[obstaclesArray.length - 1].x < canvas.width - minSpawnDistance);
@@ -685,20 +705,17 @@
                 restartFadeAmount += 2 * fadeDirection * deltaTime;
                 if (restartFadeAmount >= 1 && fadeDirection === 1) {
                     fadeDirection = -1;
-                    gameOver = false; gameWon = false; gameSpeed = 300; score = 0;
-                    obstaclesArray = []; sceneryArray = []; effectsArray = []; floatingScores = [];
-                    scoreMilestone = 1; teleportCharges = 0; inversionAmount = 0; inversionTarget = 0;
-                    bonusSpawns = {
-                        teleportGold: { '3000': 0, '9000': 0, '15000': 0 },
-                        bonusPoints: { '3000': 0, '6000': 0, '9000': 0, '12000': 0, '15000': 0, '19000': 0, '21000': 0 }
-                    };
-                    player.y = PLAYER_GROUND_LEVEL; player.state = 'run'; player.frame = 0; player.frameTimer = 0;
-                    effectsArray.push(new RunCloud());
-                    sounds.track.currentTime = 0; sounds.track.play();
+                    fullGameReset(true); // true means it came from a spacebar restart
                 }
                 if (restartFadeAmount <= 0 && fadeDirection === -1) {
-                    isRestarting = false; fadeDirection = 1;
+                    isRestarting = false;
+                    fadeDirection = 1;
                 }
+                return;
+            }
+
+            if (isResetting) {
+                updateMenu(deltaTime);
                 return;
             }
 
@@ -731,7 +748,6 @@
                     restartButton.frame = 0;
                 }
             }
-
 
             const transitionSpeed = 1 / 4;
             if (inversionAmount < inversionTarget) {
@@ -783,8 +799,67 @@
             effectsArray.forEach(effect => effect.update(deltaTime));
             effectsArray = effectsArray.filter(effect => !effect.markedForDeletion);
         }
+
+        function fullGameReset(fromSpacebar = false) {
+            isResetting = false;
+            
+            // If resetting via spacebar, we don't handle the menu
+            if(!fromSpacebar) {
+                menuState = 'loop';
+                menuFrame = 0;
+                menuFrameTimer = 0;
+                sounds.intro.currentTime = 0;
+                sounds.intro.play();
+            }
+
+            gameOver = false; gameWon = false; gameSpeed = 300; score = 0;
+            obstaclesArray = []; sceneryArray = []; effectsArray = []; floatingScores = [];
+            scoreMilestone = 1; teleportCharges = 0; inversionAmount = 0; inversionTarget = 0;
+            scoreBounceTimer = 0; teleportBounceTimer = 0;
+            bonusSpawns = {
+                teleportGold: { '3000': 0, '9000': 0, '15000': 0 },
+                bonusPoints: { '3000': 0, '6000': 0, '9000': 0, '12000': 0, '15000': 0, '19000': 0, '21000': 0 }
+            };
+            player.y = PLAYER_GROUND_LEVEL; player.state = 'run'; player.frame = 0; player.frameTimer = 0;
+            player.isJumping = false; player.isCrouching = false; player.isTeleporting = false; player.velocityY = 0;
+            
+            if (fromSpacebar) {
+                gameStarted = true;
+                effectsArray.push(new RunCloud());
+                sounds.track.currentTime = 0;
+                sounds.track.play();
+            } else {
+                gameStarted = false;
+            }
+        }
+
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (isResetting) {
+                // When resetting from button, keep showing the game over screen
+                 if (gameOver || gameWon) {
+                    ctx.save();
+                    ctx.filter = `invert(${inversionAmount * 100}%)`;
+                    ctx.fillStyle = '#f0f0f0';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    if (gameOver) {
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                        ctx.font = '40px Amanojaku, "Segoe UI"';
+                        ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
+                    }
+                    if (gameWon) {
+                         ctx.fillStyle = 'rgba(255, 255, 255, 1)';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.fillStyle = 'black';
+                        ctx.font = '40px Amanojaku, "Segoe UI"';
+                        ctx.fillText('YOU WIN', canvas.width / 2, canvas.height / 2 - 20);
+                    }
+                    ctx.restore();
+                }
+                drawMenu();
+                return;
+            }
 
             if (menuState === 'intro' || menuState === 'loop') {
                 drawMenu();
@@ -965,8 +1040,12 @@
                 menuFrameTimer = 0;
                 
                 if (menuState === 'intro' && menuFrame >= stateData.frames) {
-                    menuState = 'loop';
-                    menuFrame = 0;
+                    if (isResetting) {
+                        fullGameReset();
+                    } else {
+                        menuState = 'loop';
+                        menuFrame = 0;
+                    }
                 } else if (menuState === 'loop' && menuFrame >= stateData.frames) {
                     menuFrame = 0; // Loop the animation
                 } else if (menuState === 'outro' && menuFrame >= stateData.frames) {
@@ -995,7 +1074,7 @@
                 const frameY = Math.floor(menuFrame / columns);
                 const sourceX = frameX * stateData.spriteWidth;
                 const sourceY = frameY * stateData.spriteHeight;
-                if(menuState !== 'outro') ctx.clearRect(0, 0, canvas.width, canvas.height);
+                if(menuState !== 'outro' && !isResetting) ctx.clearRect(0, 0, canvas.width, canvas.height);
                 ctx.drawImage(currentImage, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, 0, 0, canvas.width, canvas.height);
             }
         }
@@ -1014,7 +1093,9 @@
             const deltaTime = (currentTime - lastTime) / 1000;
             lastTime = currentTime;
 
-            if(gameStarted) {
+            if(isResetting) {
+                updateMenu(deltaTime);
+            } else if(gameStarted) {
                 update(deltaTime);
                 handleScenery(deltaTime);
                 handleObstacles(deltaTime);
