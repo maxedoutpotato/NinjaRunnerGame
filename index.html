@@ -420,7 +420,7 @@
                 ctx.font = '24px Amanojaku, "Segoe UI"';
                 const valueWidth = ctx.measureText(valueText).width;
                 const totalWidth = plusWidth + valueWidth;
-                const startX = this.x - totalWidth / 2;
+                const startX = (this.x - totalWidth / 2) + 15; // Shifted right
 
                 ctx.font = 'bold 24px "Segoe UI"';
                 ctx.fillText(plusSign, startX + plusWidth / 2, this.y);
@@ -618,7 +618,7 @@
                 resetGameForNextLevel();
                 return true;
             }
-            floatingScores.push(new FloatingScore(points, player.x + player.width / 2, player.y, color));
+            floatingScores.push(new FloatingScore(points, player.x + player.width / 2 + 30, player.y, color));
             return false;
         }
         function checkCollisionsAndScore() {
@@ -689,9 +689,13 @@
                 inversionTarget = 1;
                 sounds.track.pause();
                 setTimeout(() => { canRestart = true; }, 2000);
-            } else if (scoreMilestone % 2 === 0) { // 3k, 9k, 15k...
+            } else if (score >= 15000 && score < 19000) {
                  inversionTarget = 1;
-            } else { // 6k, 12k...
+            } else if (score >= 9000 && score < 12000) {
+                 inversionTarget = 1;
+            } else if (score >= 3000 && score < 6000) {
+                 inversionTarget = 1;
+            } else {
                  inversionTarget = 0;
             }
             if (!player.isJumping) {
@@ -726,7 +730,7 @@
 
 
             if (gameOver || gameWon) {
-                if (gameSpeed > 0) gameSpeed -= 300 * deltaTime;
+                if (gameSpeed > 0) gameSpeed -= 800 * deltaTime; // Faster stop
                 else gameSpeed = 0;
                 effectsArray.forEach(effect => { if(effect instanceof RunCloud) effect.startFading() });
             } else {
@@ -803,7 +807,6 @@
         function fullGameReset(fromSpacebar = false) {
             isResetting = false;
             
-            // If resetting via spacebar, we don't handle the menu
             if(!fromSpacebar) {
                 menuState = 'loop';
                 menuFrame = 0;
@@ -837,7 +840,6 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             if (isResetting) {
-                // When resetting from button, keep showing the game over screen
                  if (gameOver || gameWon) {
                     ctx.save();
                     ctx.filter = `invert(${inversionAmount * 100}%)`;
@@ -976,7 +978,7 @@
                     ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
                     if (canRestart) {
                         ctx.font = 'bold 20px "Segoe UI"';
-                        ctx.fillText('press space to restart', canvas.width / 2, canvas.height / 2 + 20);
+                        ctx.fillText('press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
                         drawRestartButton();
                     }
                 }
@@ -984,7 +986,7 @@
                     ctx.fillStyle = 'rgba(255, 255, 255, 1)';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                     ctx.fillStyle = 'black';
-                    ctx.font = '40px Amanojaku, "Segoe UI"';
+                    ctx.font = '40px Amanojaku, "Segoe UI"`;
                     ctx.fillText('YOU WIN', canvas.width / 2, canvas.height / 2 - 20);
                     if (canRestart) {
                         ctx.font = 'bold 20px "Segoe UI"';
