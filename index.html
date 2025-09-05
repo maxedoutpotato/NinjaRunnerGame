@@ -2,8 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Ninja Runner</title>
+
+    <!-- Open Graph Meta Tags for Link Previews -->
+    <meta property="og:title" content="Ninja Runner Game" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://maxedoutpotato.github.io/NinjaRunnerGame/" />
+    <meta property="og:image" content="https://maxedoutpotato.github.io/NinjaRunnerGame/Assets/Preview/preview.png" />
+    <meta property="og:description" content="A fast-paced 2D endless runner. Jump and crouch to dodge obstacles and collect bonuses in this challenging ninja adventure!" />
+
+
     <style>
         /* Define the custom font */
         @font-face {
@@ -12,36 +21,65 @@
         }
 
         /* Basic styling to center the game and make it look clean */
-        body {
+        body, html {
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            height: 100%;
+            width: 100%;
             margin: 0;
             background-color: #282c34;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             color: white;
             flex-direction: column;
+            overflow: hidden; /* Prevent scrolling on mobile */
         }
         canvas {
             background-color: #f0f0f0;
             border-radius: 12px;
             box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-            /* This makes the canvas responsive */
-            max-width: 100%;
-            height: auto;
-            cursor: default; /* Default cursor */
+            /* Responsive canvas styling */
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            max-height: 100vh;
+            max-width: 100vw;
+            cursor: default;
+        }
+        #rotate-message {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-color: #282c34;
+            color: white;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            font-size: 24px;
+            z-index: 100;
+        }
+        @media (orientation: portrait) {
+            #rotate-message {
+                display: flex;
+            }
+            #gameCanvas {
+                display: none;
+            }
         }
     </style>
 </head>
 <body>
-
+    <div id="rotate-message">Please rotate your device to landscape mode to play.</div>
     <canvas id="gameCanvas" width="800" height="400"></canvas>
 
     <script>
         // --- Canvas and Context Setup ---
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+
+        // --- Device Detection ---
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
         // --- Game Constants ---
         const GRAVITY = 2300;
@@ -116,6 +154,9 @@
         
         let menuFrame = 0;
         let menuFrameTimer = 0;
+        
+        let touchStartTime = 0;
+        let isHoldingTouch = false;
 
         // --- Bonus Spawn Tracking ---
         let bonusSpawns = {
@@ -162,9 +203,9 @@
         const images = {};
         const sounds = {};
         const imageSources = {
-            menuIntro: 'Assets/Menu/Intro.png',
-            menuLoop: 'Assets/Menu/Loop.png',
-            menuOutro: 'Assets/Menu/Outro.png',
+            menuIntro: isMobile ? 'Assets/Menu/Intro.mobile.png' : 'Assets/Menu/Intro.png',
+            menuLoop: isMobile ? 'Assets/Menu/Loop.mobile.png' : 'Assets/Menu/Loop.png',
+            menuOutro: isMobile ? 'Assets/Menu/Outro.mobile.png' : 'Assets/Menu/Outro.png',
             button: 'Assets/Menu/Button.png',
             ground: 'Assets/Background/Ground.png',
             background1: 'Assets/Background/Background.1.png',
@@ -215,6 +256,34 @@
         function assetLoaded() { assetsLoaded++; }
 
         // --- Input Handling ---
+        function handleJump() {
+            if (!player.isJumping && !gameOver) {
+                player.isJumping = true;
+                player.velocityY = JUMP_STRENGTH;
+                player.state = 'jump';
+                player.frame = 0;
+                sounds.jump.currentTime = 0;
+                sounds.jump.play();
+                effectsArray.forEach(effect => { if(effect.startFading) effect.startFading() });
+            }
+        }
+
+        function handleCrouchStart() {
+            if (gameStarted && !player.isJumping && !player.isCrouching) {
+                player.isCrouching = true;
+                player.state = 'crouch';
+                sounds.crouch.currentTime = 0;
+                sounds.crouch.play();
+            }
+        }
+
+        function handleCrouchEnd() {
+            if (player.isCrouching) {
+                player.isCrouching = false;
+                player.state = 'run';
+            }
+        }
+
         document.addEventListener('keydown', function(event) {
             if (isRestarting || isResetting) return;
 
@@ -233,42 +302,34 @@
                         sounds.intro.currentTime = 0;
                         startGame();
                     }
-                } else if (!player.isJumping && !gameOver) {
-                    player.isJumping = true;
-                    player.velocityY = JUMP_STRENGTH;
-                    player.state = 'jump';
-                    player.frame = 0;
-                    sounds.jump.currentTime = 0;
-                    sounds.jump.play();
-                    effectsArray.forEach(effect => { if(effect.startFading) effect.startFading() });
+                } else {
+                    handleJump();
                 }
             }
             
             if (gameOver || !gameStarted) return;
 
-            if ((event.code === 'KeyS' || event.code === 'ArrowDown') && !player.isJumping && !player.isCrouching) {
-                player.isCrouching = true;
-                player.state = 'crouch';
-                sounds.crouch.currentTime = 0;
-                sounds.crouch.play();
+            if ((event.code === 'KeyS' || event.code === 'ArrowDown')) {
+                handleCrouchStart();
             }
         });
         document.addEventListener('keyup', function(event) {
             if (gameOver || isRestarting || !gameStarted || isResetting) return;
             if (event.code === 'KeyS' || event.code === 'ArrowDown') {
-                player.isCrouching = false;
-                player.state = 'run';
+                handleCrouchEnd();
             }
         });
 
-        // --- Mouse/Touch Controls for Button ---
+        // --- Mouse/Touch Controls ---
         function getMousePos(canvas, evt) {
             const rect = canvas.getBoundingClientRect();
-            return {
-                x: evt.clientX - rect.left,
-                y: evt.clientY - rect.top
-            };
+            return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
         }
+        function getTouchPos(canvas, evt) {
+            const rect = canvas.getBoundingClientRect();
+            return { x: evt.touches[0].clientX - rect.left, y: evt.touches[0].clientY - rect.top };
+        }
+        
         canvas.addEventListener('mousemove', (evt) => {
             if (!canRestart) {
                 canvas.style.cursor = 'default';
@@ -310,6 +371,60 @@
                 if(sounds.gecko) sounds.gecko.pause();
             }
         });
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (isRestarting || isResetting) return;
+
+            if ((gameOver || gameWon) && canRestart) {
+                 const touchPos = getTouchPos(canvas, e);
+                 if (touchPos.x >= restartButton.x && touchPos.x <= restartButton.x + restartButton.width &&
+                    touchPos.y >= restartButton.y && touchPos.y <= restartButton.y + restartButton.height) {
+                    restartButton.isPressed = true;
+                 }
+                return;
+            }
+
+            if (!gameStarted) {
+                if (menuState === 'loop') {
+                    menuState = 'outro';
+                    menuFrame = 0;
+                    menuFrameTimer = 0;
+                    sounds.intro.pause();
+                    sounds.intro.currentTime = 0;
+                    startGame();
+                }
+            } else {
+                touchStartTime = Date.now();
+                isHoldingTouch = true;
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (isRestarting || isResetting) return;
+
+            if (restartButton.isPressed) {
+                restartButton.isPressed = false;
+                isResetting = true;
+                menuState = 'intro';
+                menuFrame = 0;
+                menuFrameTimer = 0;
+                canRestart = false;
+                sounds.gateClose.play();
+                if(sounds.gecko) sounds.gecko.pause();
+                return;
+            }
+
+            const touchDuration = Date.now() - touchStartTime;
+            if (gameStarted && isHoldingTouch) {
+                if (touchDuration < 250) { // It's a tap
+                    handleJump();
+                }
+                handleCrouchEnd();
+            }
+            isHoldingTouch = false;
+        }, { passive: false });
 
 
         // --- All Classes (Full logic restored) ---
@@ -736,6 +851,14 @@
             } else {
                 gameSpeed += speedIncreaseRate * 60 * deltaTime;
             }
+            
+            if (isHoldingTouch && gameStarted && !player.isJumping) {
+                const holdDuration = Date.now() - touchStartTime;
+                if (holdDuration > 200) { // 200ms threshold for a hold
+                    handleCrouchStart();
+                }
+            }
+
 
             if (scoreBounceTimer > 0) scoreBounceTimer -= deltaTime;
             if (teleportBounceTimer > 0) teleportBounceTimer -= deltaTime;
