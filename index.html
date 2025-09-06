@@ -28,7 +28,7 @@
             height: 100%;
             width: 100%;
             margin: 0;
-            background-color: #282c34;
+            background-color: #1a1a1a; /* Darker grey for letterboxing */
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             color: white;
             flex-direction: column;
@@ -157,6 +157,8 @@
         
         let touchStartTime = 0;
         let isHoldingTouch = false;
+        let audioUnlocked = false;
+        let wantsToCrouch = false;
 
         // --- Bonus Spawn Tracking ---
         let bonusSpawns = {
@@ -179,8 +181,8 @@
         
         // --- Restart Button State ---
         let restartButton = {
-            x: canvas.width - 90, y: canvas.height - 90, width: 80, height: 80,
-            frame: 0, frameTimer: 0, isHovered: false, isPressed: false
+            x: canvas.width - 110, y: canvas.height - 110, width: 100, height: 100,
+            frame: 0, frameTimer: 0, isHovered: false, isPressed: false, touchStartX: 0
         };
 
         // --- Animation Data ---
@@ -258,6 +260,7 @@
         // --- Input Handling ---
         function handleJump() {
             if (!player.isJumping && !gameOver) {
+                wantsToCrouch = false;
                 player.isJumping = true;
                 player.velocityY = JUMP_STRENGTH;
                 player.state = 'jump';
@@ -269,6 +272,10 @@
         }
 
         function handleCrouchStart() {
+            if (player.isJumping) {
+                wantsToCrouch = true;
+                return;
+            }
             if (gameStarted && !player.isJumping && !player.isCrouching) {
                 player.isCrouching = true;
                 player.state = 'crouch';
@@ -278,6 +285,7 @@
         }
 
         function handleCrouchEnd() {
+            wantsToCrouch = false;
             if (player.isCrouching) {
                 player.isCrouching = false;
                 player.state = 'run';
@@ -295,6 +303,7 @@
                 }
                 if (!gameStarted) {
                     if (menuState === 'loop') {
+                         unlockAudio();
                         menuState = 'outro';
                         menuFrame = 0;
                         menuFrameTimer = 0;
@@ -321,13 +330,16 @@
         });
 
         // --- Mouse/Touch Controls ---
-        function getMousePos(canvas, evt) {
+        function getScaledCoordinates(evt) {
             const rect = canvas.getBoundingClientRect();
-            return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
-        }
-        function getTouchPos(canvas, evt) {
-            const rect = canvas.getBoundingClientRect();
-            return { x: evt.touches[0].clientX - rect.left, y: evt.touches[0].clientY - rect.top };
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const clientX = evt.clientX || evt.touches[0].clientX;
+            const clientY = evt.clientY || evt.touches[0].clientY;
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
+            };
         }
         
         canvas.addEventListener('mousemove', (evt) => {
@@ -335,7 +347,7 @@
                 canvas.style.cursor = 'default';
                 return;
             };
-            const mousePos = getMousePos(canvas, evt);
+            const mousePos = getScaledCoordinates(evt);
             const isHovering = (mousePos.x >= restartButton.x && mousePos.x <= restartButton.x + restartButton.width &&
                 mousePos.y >= restartButton.y && mousePos.y <= restartButton.y + restartButton.height);
 
@@ -375,18 +387,24 @@
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
             if (isRestarting || isResetting) return;
+            
+            const touchPos = getScaledCoordinates(e);
 
             if ((gameOver || gameWon) && canRestart) {
-                 const touchPos = getTouchPos(canvas, e);
                  if (touchPos.x >= restartButton.x && touchPos.x <= restartButton.x + restartButton.width &&
                     touchPos.y >= restartButton.y && touchPos.y <= restartButton.y + restartButton.height) {
                     restartButton.isPressed = true;
+                    restartButton.touchStartX = e.touches[0].clientX;
+                 } else {
+                     isRestarting = true;
+                     canRestart = false;
                  }
                 return;
             }
 
             if (!gameStarted) {
                 if (menuState === 'loop') {
+                    unlockAudio();
                     menuState = 'outro';
                     menuFrame = 0;
                     menuFrameTimer = 0;
@@ -405,14 +423,17 @@
             if (isRestarting || isResetting) return;
 
             if (restartButton.isPressed) {
+                const touchEndX = e.changedTouches[0].clientX;
+                if (touchEndX < restartButton.touchStartX - 50) { // Swiped left by 50px
+                    isResetting = true;
+                    menuState = 'intro';
+                    menuFrame = 0;
+                    menuFrameTimer = 0;
+                    canRestart = false;
+                    sounds.gateClose.play();
+                    if(sounds.gecko) sounds.gecko.pause();
+                }
                 restartButton.isPressed = false;
-                isResetting = true;
-                menuState = 'intro';
-                menuFrame = 0;
-                menuFrameTimer = 0;
-                canRestart = false;
-                sounds.gateClose.play();
-                if(sounds.gecko) sounds.gecko.pause();
                 return;
             }
 
@@ -426,6 +447,17 @@
             isHoldingTouch = false;
         }, { passive: false });
 
+        // --- Sound Utility ---
+        function unlockAudio() {
+            if (audioUnlocked) return;
+            for (const key in sounds) {
+                sounds[key].play().then(() => {
+                    sounds[key].pause();
+                    sounds[key].currentTime = 0;
+                }).catch(e => {});
+            }
+            audioUnlocked = true;
+        }
 
         // --- All Classes (Full logic restored) ---
         class VisualEffect { constructor() { this.markedForDeletion = false; } }
@@ -907,7 +939,11 @@
                 }
                 player.isJumping = false;
                 player.velocityY = 0;
-                if (!player.isCrouching && !gameOver) { player.state = 'run'; }
+                if (wantsToCrouch) {
+                    handleCrouchStart();
+                } else if (!player.isCrouching && !gameOver) { 
+                    player.state = 'run'; 
+                }
             }
             player.frameTimer += deltaTime;
             const stateData = animationStates[player.state];
@@ -970,7 +1006,7 @@
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                     if (gameOver) {
                         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                        ctx.font = '40px Amanojaku, "Segoe UI"';
+                        ctx.font = '60px Amanojaku, "Segoe UI"';
                         ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
                     }
                     if (gameWon) {
@@ -1097,7 +1133,7 @@
 
                 if (gameOver) {
                     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                    ctx.font = '40px Amanojaku, "Segoe UI"';
+                    ctx.font = '60px Amanojaku, "Segoe UI"';
                     ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
                     if (canRestart) {
                         ctx.font = 'bold 20px "Segoe UI"';
