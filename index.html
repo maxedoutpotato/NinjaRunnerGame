@@ -181,7 +181,7 @@
         
         // --- Restart Button State ---
         let restartButton = {
-            x: canvas.width - 110, y: canvas.height - 110, width: 100, height: 100,
+            x: canvas.width - 120, y: canvas.height - 120, width: 110, height: 110,
             frame: 0, frameTimer: 0, isHovered: false, isPressed: false, touchStartX: 0
         };
 
@@ -334,8 +334,8 @@
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
-            const clientX = evt.clientX || evt.touches[0].clientX;
-            const clientY = evt.clientY || evt.touches[0].clientY;
+            const clientX = evt.clientX || (evt.touches && evt.touches[0] ? evt.touches[0].clientX : 0);
+            const clientY = evt.clientY || (evt.touches && evt.touches[0] ? evt.touches[0].clientY : 0);
             return {
                 x: (clientX - rect.left) * scaleX,
                 y: (clientY - rect.top) * scaleY
@@ -394,7 +394,6 @@
                  if (touchPos.x >= restartButton.x && touchPos.x <= restartButton.x + restartButton.width &&
                     touchPos.y >= restartButton.y && touchPos.y <= restartButton.y + restartButton.height) {
                     restartButton.isPressed = true;
-                    restartButton.touchStartX = e.touches[0].clientX;
                  } else {
                      isRestarting = true;
                      canRestart = false;
@@ -423,16 +422,13 @@
             if (isRestarting || isResetting) return;
 
             if (restartButton.isPressed) {
-                const touchEndX = e.changedTouches[0].clientX;
-                if (touchEndX < restartButton.touchStartX - 50) { // Swiped left by 50px
-                    isResetting = true;
-                    menuState = 'intro';
-                    menuFrame = 0;
-                    menuFrameTimer = 0;
-                    canRestart = false;
-                    sounds.gateClose.play();
-                    if(sounds.gecko) sounds.gecko.pause();
-                }
+                isResetting = true;
+                menuState = 'intro';
+                menuFrame = 0;
+                menuFrameTimer = 0;
+                canRestart = false;
+                sounds.gateClose.play();
+                if(sounds.gecko) sounds.gecko.pause();
                 restartButton.isPressed = false;
                 return;
             }
@@ -723,7 +719,7 @@
         function handleObstacles(deltaTime) {
             obstaclesArray.forEach(obstacle => obstacle.update(deltaTime));
             if (gameOver || isRestarting || isResetting) return;
-            const minSpawnDistance = canvas.width / 1.2;
+            const minSpawnDistance = canvas.width / 1.1;
             const spawnChance = 0.015;
             let canSpawn = (obstaclesArray.length === 0 && !isRestarting) || (obstaclesArray.length > 0 && obstaclesArray[obstaclesArray.length - 1].x < canvas.width - minSpawnDistance);
             if (canSpawn && Math.random() < spawnChance) {
@@ -897,7 +893,7 @@
             
             if (canRestart) {
                 restartButton.frameTimer += deltaTime;
-                if (restartButton.isHovered) {
+                if (restartButton.isHovered && !isMobile) {
                     const stateData = animationStates.button;
                     if (restartButton.frameTimer >= stateData.frameDuration) {
                         restartButton.frame = (restartButton.frame + 1) % stateData.frames;
