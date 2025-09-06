@@ -983,6 +983,8 @@
             
             if (fromSpacebar) {
                 gameStarted = true;
+                sounds.start.play();
+                sounds.roll.play();
                 effectsArray.push(new RunCloud());
                 sounds.track.currentTime = 0;
                 sounds.track.play();
@@ -1002,14 +1004,14 @@
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                     if (gameOver) {
                         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                        ctx.font = '60px Amanojaku, "Segoe UI"';
+                        ctx.font = '70px Amanojaku';
                         ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
                     }
                     if (gameWon) {
                          ctx.fillStyle = 'rgba(255, 255, 255, 1)';
                         ctx.fillRect(0, 0, canvas.width, canvas.height);
                         ctx.fillStyle = 'black';
-                        ctx.font = '40px Amanojaku, "Segoe UI"';
+                        ctx.font = '50px Amanojaku';
                         ctx.fillText('YOU WIN', canvas.width / 2, canvas.height / 2 - 20);
                     }
                     ctx.restore();
@@ -1096,7 +1098,7 @@
                     ctx.fillStyle = 'black';
                 }
                 
-                ctx.font = `${scoreFontSize}px Amanojaku, "Segoe UI"`;
+                ctx.font = `${scoreFontSize}px Amanojaku`;
                 const scoreNumberWidth = ctx.measureText(scoreNumberText).width;
                 ctx.fillText(scoreNumberText, canvas.width - 20, 40);
                 
@@ -1118,7 +1120,7 @@
                         ctx.fillStyle = 'black';
                     }
 
-                    ctx.font = `${teleportFontSize}px Amanojaku, "Segoe UI"`;
+                    ctx.font = `${teleportFontSize}px Amanojaku`;
                     ctx.fillText('x', 65, 45);
                     const x_width = ctx.measureText('x').width;
 
@@ -1129,7 +1131,7 @@
 
                 if (gameOver) {
                     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                    ctx.font = '60px Amanojaku, "Segoe UI"';
+                    ctx.font = '70px Amanojaku';
                     ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
                     if (canRestart) {
                         ctx.font = 'bold 20px "Segoe UI"';
@@ -1141,7 +1143,7 @@
                     ctx.fillStyle = 'rgba(255, 255, 255, 1)';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                     ctx.fillStyle = 'black';
-                    ctx.font = '40px Amanojaku, "Segoe UI"`;
+                    ctx.font = '50px Amanojaku';
                     ctx.fillText('YOU WIN', canvas.width / 2, canvas.height / 2 - 20);
                     if (canRestart) {
                         ctx.font = 'bold 20px "Segoe UI"';
@@ -1288,3 +1290,4 @@
     </script>
 </body>
 </html>
+
