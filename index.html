@@ -469,7 +469,6 @@
             audioUnlocked = true;
             menuState = 'intro'; // Start the menu animation after audio is unlocked
             sounds.intro.play();
-            sounds.gateClose.play();
         }
 
         // --- All Classes (Full logic restored) ---
@@ -1017,9 +1016,10 @@
                 ctx.fillStyle = 'white';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.fillStyle = 'black';
-                ctx.font = '30px "Segoe UI"';
+                const beginText = isMobile ? 'TAP to begin' : 'press SPACE to begin';
+                ctx.font = 'bold 30px "Segoe UI"';
                 ctx.textAlign = 'center';
-                ctx.fillText('TAP to begin', canvas.width / 2, canvas.height / 2);
+                ctx.fillText(beginText, canvas.width / 2, canvas.height / 2);
                 return;
             }
 
@@ -1280,7 +1280,9 @@
             const deltaTime = (currentTime - lastTime) / 1000;
             lastTime = currentTime;
 
-            if(isResetting) {
+            if (menuState === 'pre-menu') {
+                // Do nothing but wait for user input
+            } else if(isResetting) {
                 updateMenu(deltaTime);
             } else if(gameStarted) {
                 update(deltaTime);
