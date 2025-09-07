@@ -181,7 +181,7 @@
         
         // --- Restart Button State ---
         let restartButton = {
-            x: canvas.width - 120, y: canvas.height - 120, width: 110, height: 110,
+            x: canvas.width - 130, y: canvas.height - 130, width: 120, height: 120,
             frame: 0, frameTimer: 0, isHovered: false, isPressed: false, touchStartX: 0
         };
 
@@ -389,10 +389,13 @@
             if (isRestarting || isResetting) return;
             
             const touchPos = getScaledCoordinates(e);
+            const buttonPadding = 20; // Extra pixels for easier tapping
 
             if ((gameOver || gameWon) && canRestart) {
-                 if (touchPos.x >= restartButton.x && touchPos.x <= restartButton.x + restartButton.width &&
-                    touchPos.y >= restartButton.y && touchPos.y <= restartButton.y + restartButton.height) {
+                 if (touchPos.x >= restartButton.x - buttonPadding && 
+                     touchPos.x <= restartButton.x + restartButton.width + buttonPadding &&
+                     touchPos.y >= restartButton.y - buttonPadding && 
+                     touchPos.y <= restartButton.y + restartButton.height + buttonPadding) {
                     restartButton.isPressed = true;
                  } else {
                      isRestarting = true;
@@ -1278,8 +1281,7 @@
                 setTimeout(initialDraw, 50);
                 return;
             }
-            sounds.intro.play();
-            sounds.gateClose.play();
+            
             lastTime = performance.now();
             mainLoop(lastTime);
         }
