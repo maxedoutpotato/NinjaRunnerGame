@@ -124,7 +124,7 @@
         ];
 
         // --- Game State ---
-        let menuState = 'intro'; // 'intro', 'loop', 'outro', 'inactive'
+        let menuState = 'pre-menu'; // 'pre-menu', 'intro', 'loop', 'outro', 'inactive'
         let gameStarted = false;
         let gameOver = false;
         let gameWon = false;
@@ -296,6 +296,11 @@
             if (isRestarting || isResetting) return;
 
             if (event.code === 'Space' || event.code === 'ArrowUp') {
+                 if (menuState === 'pre-menu') {
+                    unlockAudio();
+                    menuState = 'intro';
+                    return;
+                }
                 if ((gameOver || gameWon) && canRestart) {
                     isRestarting = true;
                     canRestart = false;
@@ -303,7 +308,6 @@
                 }
                 if (!gameStarted) {
                     if (menuState === 'loop') {
-                         unlockAudio();
                         menuState = 'outro';
                         menuFrame = 0;
                         menuFrameTimer = 0;
@@ -388,6 +392,12 @@
             e.preventDefault();
             if (isRestarting || isResetting) return;
             
+            if (menuState === 'pre-menu') {
+                unlockAudio();
+                menuState = 'intro';
+                return;
+            }
+
             const touchPos = getScaledCoordinates(e);
             const buttonPadding = 20; // Extra pixels for easier tapping
 
@@ -406,7 +416,6 @@
 
             if (!gameStarted) {
                 if (menuState === 'loop') {
-                    unlockAudio();
                     menuState = 'outro';
                     menuFrame = 0;
                     menuFrameTimer = 0;
@@ -449,6 +458,10 @@
         // --- Sound Utility ---
         function unlockAudio() {
             if (audioUnlocked) return;
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
             for (const key in sounds) {
                 sounds[key].play().then(() => {
                     sounds[key].pause();
@@ -456,6 +469,8 @@
                 }).catch(e => {});
             }
             audioUnlocked = true;
+            sounds.intro.play();
+            sounds.gateClose.play();
         }
 
         // --- All Classes (Full logic restored) ---
@@ -1137,8 +1152,9 @@
                     ctx.font = '70px Amanojaku';
                     ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
                     if (canRestart) {
+                        const restartText = isMobile ? 'TAP to restart' : 'press SPACE to restart';
                         ctx.font = 'bold 20px "Segoe UI"';
-                        ctx.fillText('press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
+                        ctx.fillText(restartText, canvas.width / 2, canvas.height / 2 + 20);
                         drawRestartButton();
                     }
                 }
@@ -1281,7 +1297,6 @@
                 setTimeout(initialDraw, 50);
                 return;
             }
-            
             lastTime = performance.now();
             mainLoop(lastTime);
         }
