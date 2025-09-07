@@ -298,7 +298,6 @@
             if (event.code === 'Space' || event.code === 'ArrowUp') {
                  if (menuState === 'pre-menu') {
                     unlockAudio();
-                    menuState = 'intro';
                     return;
                 }
                 if ((gameOver || gameWon) && canRestart) {
@@ -394,7 +393,6 @@
             
             if (menuState === 'pre-menu') {
                 unlockAudio();
-                menuState = 'intro';
                 return;
             }
 
@@ -469,6 +467,7 @@
                 }).catch(e => {});
             }
             audioUnlocked = true;
+            menuState = 'intro'; // Start the menu animation after audio is unlocked
             sounds.intro.play();
             sounds.gateClose.play();
         }
@@ -1013,6 +1012,16 @@
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (menuState === 'pre-menu') {
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = 'black';
+                ctx.font = '30px "Segoe UI"';
+                ctx.textAlign = 'center';
+                ctx.fillText('TAP to begin', canvas.width / 2, canvas.height / 2);
+                return;
+            }
 
             if (isResetting) {
                  if (gameOver || gameWon) {
