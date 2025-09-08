@@ -38,7 +38,7 @@
             background-color: #f0f0f0;
             border-radius: 12px;
             box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-            /* Responsive canvas styling */
+            /* This makes the canvas responsive */
             width: 100%;
             height: 100%;
             object-fit: contain;
@@ -149,6 +149,7 @@
         let sceneryArray = [];
         let effectsArray = [];
         let score = 0;
+        let uiFadeInTimer = 0;
         let floatingScores = [];
         let scoreMilestone = 1;
         let scoreBounceTimer = 0;
@@ -1005,7 +1006,7 @@
             }
 
             gameOver = false; gameWon = false; gameSpeed = 300; score = 0;
-            gameOverFade = 0;
+            gameOverFade = 0; uiFadeInTimer = 0;
             obstaclesArray = []; sceneryArray = []; effectsArray = []; floatingScores = [];
             scoreMilestone = 1; teleportCharges = 0; inversionAmount = 0; inversionTarget = 0;
             scoreBounceTimer = 0; teleportBounceTimer = 0;
