@@ -53,6 +53,7 @@
             width: 100%; height: 100%;
             background-color: #282c34;
             color: white;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             text-align: center;
@@ -70,13 +71,17 @@
     </style>
 </head>
 <body>
-    <div id="rotate-message">Please rotate your device to landscape mode to play.</div>
+    <div id="rotate-message">
+        <canvas id="rotateCanvas" width="250" height="500"></canvas>
+    </div>
     <canvas id="gameCanvas" width="800" height="400"></canvas>
 
     <script>
         // --- Canvas and Context Setup ---
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        const rotateCanvas = document.getElementById('rotateCanvas');
+        const rotateCtx = rotateCanvas.getContext('2d');
 
         // --- Device Detection ---
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -154,6 +159,10 @@
         
         let menuFrame = 0;
         let menuFrameTimer = 0;
+        let preMenuFrame = 0;
+        let preMenuFrameTimer = 0;
+        let rotateFrame = 0;
+        let rotateFrameTimer = 0;
         
         let touchStartTime = 0;
         let isHoldingTouch = false;
@@ -198,7 +207,9 @@
             menuIntro: { frames: 28, columns: 4, frameDuration: 0.04, spriteWidth: 500, spriteHeight: 250 },
             menuLoop: { frames: 28, columns: 4, frameDuration: 0.1, spriteWidth: 500, spriteHeight: 250 },
             menuOutro: { frames: 28, columns: 4, frameDuration: 0.04, spriteWidth: 500, spriteHeight: 250 },
-            button: { frames: 10, columns: 4, frameDuration: 0.05, spriteWidth: 80, spriteHeight: 80 }
+            button: { frames: 10, columns: 4, frameDuration: 0.05, spriteWidth: 80, spriteHeight: 80 },
+            rotate: { frames: 28, columns: 7, frameDuration: 0.05, spriteWidth: 250, spriteHeight: 500 },
+            tap: { frames: 28, columns: 4, frameDuration: 0.08, spriteWidth: 500, spriteHeight: 250 }
         };
 
         // --- Asset Loading ---
@@ -209,6 +220,8 @@
             menuLoop: isMobile ? 'Assets/Menu/Loop.mobile.png' : 'Assets/Menu/Loop.png',
             menuOutro: isMobile ? 'Assets/Menu/Outro.mobile.png' : 'Assets/Menu/Outro.png',
             button: 'Assets/Menu/Button.png',
+            rotate: 'Assets/Menu/Rotate.png',
+            tap: 'Assets/Menu/Tap.png',
             ground: 'Assets/Background/Ground.png',
             background1: 'Assets/Background/Background.1.png',
             background2: 'Assets/Background/Background.2.png',
@@ -1014,13 +1027,15 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             if (menuState === 'pre-menu') {
-                ctx.fillStyle = 'white';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = 'black';
-                const beginText = isMobile ? 'TAP to begin' : 'press SPACE to begin';
-                ctx.font = 'bold 30px "Segoe UI"';
-                ctx.textAlign = 'center';
-                ctx.fillText(beginText, canvas.width / 2, canvas.height / 2);
+                 if (images.tap && images.tap.complete) {
+                    const stateData = animationStates.tap;
+                    const columns = stateData.columns;
+                    const frameX = preMenuFrame % columns;
+                    const frameY = Math.floor(preMenuFrame / columns);
+                    const sourceX = frameX * stateData.spriteWidth;
+                    const sourceY = frameY * stateData.spriteHeight;
+                    ctx.drawImage(images.tap, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, 0, 0, canvas.width, canvas.height);
+                }
                 return;
             }
 
@@ -1281,8 +1296,21 @@
             const deltaTime = (currentTime - lastTime) / 1000;
             lastTime = currentTime;
 
+            // Always update the rotate animation
+            rotateFrameTimer += deltaTime;
+            const rotateData = animationStates.rotate;
+            if (rotateFrameTimer >= rotateData.frameDuration) {
+                rotateFrame = (rotateFrame + 1) % rotateData.frames;
+                rotateFrameTimer = 0;
+            }
+
             if (menuState === 'pre-menu') {
-                // Do nothing but wait for user input
+                 preMenuFrameTimer += deltaTime;
+                 const tapData = animationStates.tap;
+                 if (preMenuFrameTimer >= tapData.frameDuration) {
+                     preMenuFrame = (preMenuFrame + 1) % tapData.frames;
+                     preMenuFrameTimer = 0;
+                 }
             } else if(isResetting) {
                 updateMenu(deltaTime);
             } else if(gameStarted) {
@@ -1295,8 +1323,22 @@
             }
             
             draw();
+            drawRotateCanvas();
             
             requestAnimationFrame(mainLoop);
+        }
+
+        function drawRotateCanvas() {
+            if (images.rotate && images.rotate.complete) {
+                const stateData = animationStates.rotate;
+                const columns = stateData.columns;
+                const frameX = rotateFrame % columns;
+                const frameY = Math.floor(rotateFrame / columns);
+                const sourceX = frameX * stateData.spriteWidth;
+                const sourceY = frameY * stateData.spriteHeight;
+                rotateCtx.clearRect(0,0, rotateCanvas.width, rotateCanvas.height);
+                rotateCtx.drawImage(images.rotate, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, 0, 0, rotateCanvas.width, rotateCanvas.height);
+            }
         }
         
         function initialDraw() {
