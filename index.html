@@ -484,9 +484,12 @@
                 }).catch(e => {});
             }
             audioUnlocked = true;
-            menuState = 'intro'; // Start the menu animation after audio is unlocked
-            sounds.intro.play();
-            sounds.gateClose.play();
+            
+            setTimeout(() => {
+                menuState = 'intro'; 
+                sounds.intro.play();
+                sounds.gateClose.play();
+            }, 50); // A small delay to ensure context is ready
         }
 
         // --- All Classes (Full logic restored) ---
