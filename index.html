@@ -132,6 +132,7 @@
         let menuState = 'pre-menu'; // 'pre-menu', 'intro', 'loop', 'outro', 'inactive'
         let gameStarted = false;
         let gameOver = false;
+        let gameOverFade = 0;
         let gameWon = false;
         let canRestart = false;
         let isRestarting = false; // For fade transition
@@ -184,8 +185,8 @@
             x: 50, y: PLAYER_GROUND_LEVEL, width: PLAYER_DRAW_WIDTH, height: PLAYER_DRAW_HEIGHT,
             velocityY: 0, isJumping: false, isCrouching: false, isTeleporting: false,
             frame: 0, frameTimer: 0, state: 'run',
-            hitbox: { offsetX: 20, offsetY: 18, width: 75, height: 65 },
-            crouchHitbox: { offsetX: 10, offsetY: 40, width: 83, height: 45 }
+            hitbox: { offsetX: 20, offsetY: 18, width: 65, height: 60 },
+            crouchHitbox: { offsetX: 10, offsetY: 40, width: 73, height: 40 }
         };
         
         // --- Restart Button State ---
@@ -635,7 +636,7 @@
                 this.spriteWidth = 50; this.spriteHeight = 50;
                 this.width = 70; this.height = 70;
                 this.y = SHURIKEN_FLYING_HEIGHTS[Math.floor(Math.random() * SHURIKEN_FLYING_HEIGHTS.length)];
-                this.speedModifier = 1.1; this.hitbox = { offsetX: 10, offsetY: 10, width: 50, height: 50 };
+                this.speedModifier = 1.1; this.hitbox = { offsetX: 10, offsetY: 10, width: 45, height: 45 };
             }
             update(deltaTime) {
                 super.update(deltaTime);
@@ -682,7 +683,7 @@
                 this.width = 140; this.height = 130;
                 this.y = PLAYER_GROUND_LEVEL + PLAYER_DRAW_HEIGHT - this.height + 20;
                 this.speedModifier = 1.0;
-                this.hitbox = { offsetX: 35, offsetY: 45 , width: 85, height: 60 };
+                this.hitbox = { offsetX: 35, offsetY: 45 , width: 75, height: 45 };
             }
             draw() {
                  if (this.image.complete && this.image.naturalWidth > 0) {
