@@ -93,7 +93,7 @@
         const PLAYER_SPRITE_HEIGHT = 100;
         const PLAYER_DRAW_WIDTH = 100;
         const PLAYER_DRAW_HEIGHT = 100;
-        const DEBUG_MODE = false;
+        const DEBUG_MODE = true; // Set to true to see hitboxes
         
         // --- Physics vs Visuals ---
         const GROUND_HEIGHT_PHYSICS = 68;
@@ -209,7 +209,8 @@
             menuOutro: { frames: 28, columns: 4, frameDuration: 0.04, spriteWidth: 500, spriteHeight: 250 },
             button: { frames: 10, columns: 4, frameDuration: 0.05, spriteWidth: 80, spriteHeight: 80 },
             rotate: { frames: 28, columns: 7, frameDuration: 0.05, spriteWidth: 250, spriteHeight: 500 },
-            tap: { frames: 28, columns: 4, frameDuration: 0.08, spriteWidth: 500, spriteHeight: 250 }
+            tap: { frames: 28, columns: 4, frameDuration: 0.08, spriteWidth: 500, spriteHeight: 250 },
+            space: { frames: 28, columns: 4, frameDuration: 0.08, spriteWidth: 500, spriteHeight: 250 }
         };
 
         // --- Asset Loading ---
@@ -222,6 +223,7 @@
             button: 'Assets/Menu/Button.png',
             rotate: 'Assets/Menu/Rotate.png',
             tap: 'Assets/Menu/Tap.png',
+            space: 'Assets/Menu/Space.png',
             ground: 'Assets/Background/Ground.png',
             background1: 'Assets/Background/Background.1.png',
             background2: 'Assets/Background/Background.2.png',
@@ -1027,14 +1029,15 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             if (menuState === 'pre-menu') {
-                 if (images.tap && images.tap.complete) {
-                    const stateData = animationStates.tap;
+                 if ((isMobile && images.tap) || (!isMobile && images.space)) {
+                    const preMenuImage = isMobile ? images.tap : images.space;
+                    const stateData = isMobile ? animationStates.tap : animationStates.space;
                     const columns = stateData.columns;
                     const frameX = preMenuFrame % columns;
                     const frameY = Math.floor(preMenuFrame / columns);
                     const sourceX = frameX * stateData.spriteWidth;
                     const sourceY = frameY * stateData.spriteHeight;
-                    ctx.drawImage(images.tap, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, 0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(preMenuImage, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, 0, 0, canvas.width, canvas.height);
                 }
                 return;
             }
@@ -1287,8 +1290,6 @@
             sounds.start.play();
             sounds.roll.play();
             sounds.track.play();
-            sounds.gateClose.play();
-            effectsArray.push(new RunCloud());
         }
 
         function mainLoop(currentTime) {
@@ -1306,9 +1307,9 @@
 
             if (menuState === 'pre-menu') {
                  preMenuFrameTimer += deltaTime;
-                 const tapData = animationStates.tap;
-                 if (preMenuFrameTimer >= tapData.frameDuration) {
-                     preMenuFrame = (preMenuFrame + 1) % tapData.frames;
+                 const preMenuAnimation = isMobile ? animationStates.tap : animationStates.space;
+                 if (preMenuFrameTimer >= preMenuAnimation.frameDuration) {
+                     preMenuFrame = (preMenuFrame + 1) % preMenuAnimation.frames;
                      preMenuFrameTimer = 0;
                  }
             } else if(isResetting) {
