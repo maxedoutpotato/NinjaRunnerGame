@@ -149,6 +149,7 @@
         let sceneryArray = [];
         let effectsArray = [];
         let score = 0;
+        let uiFadeInTimer = 0;
         let floatingScores = [];
         let scoreMilestone = 1;
         let scoreBounceTimer = 0;
@@ -185,8 +186,8 @@
             x: 50, y: PLAYER_GROUND_LEVEL, width: PLAYER_DRAW_WIDTH, height: PLAYER_DRAW_HEIGHT,
             velocityY: 0, isJumping: false, isCrouching: false, isTeleporting: false,
             frame: 0, frameTimer: 0, state: 'run',
-            hitbox: { offsetX: 20, offsetY: 18, width: 65, height: 60 },
-            crouchHitbox: { offsetX: 10, offsetY: 40, width: 70, height: 30 }
+            hitbox: { offsetX: 20, offsetY: 30, width: 65, height: 40 },
+            crouchHitbox: { offsetX: 10, offsetY: 20, width: 70, height: 30 }
         };
         
         // --- Restart Button State ---
@@ -483,9 +484,12 @@
                 }).catch(e => {});
             }
             audioUnlocked = true;
-            menuState = 'intro'; // Start the menu animation after audio is unlocked
-            sounds.intro.play();
-            sounds.gateClose.play();
+            
+            setTimeout(() => {
+                menuState = 'intro'; // Start the menu animation after audio is unlocked
+                sounds.intro.play();
+                sounds.gateClose.play();
+            }, 100); // A small delay to ensure context is ready
         }
 
         // --- All Classes (Full logic restored) ---
@@ -636,7 +640,7 @@
                 this.spriteWidth = 50; this.spriteHeight = 50;
                 this.width = 70; this.height = 70;
                 this.y = SHURIKEN_FLYING_HEIGHTS[Math.floor(Math.random() * SHURIKEN_FLYING_HEIGHTS.length)];
-                this.speedModifier = 1.1; this.hitbox = { offsetX: 10, offsetY: 15, width: 45, height: 40 };
+                this.speedModifier = 1.1; this.hitbox = { offsetX: 10, offsetY: 20, width: 45, height: 40 };
             }
             update(deltaTime) {
                 super.update(deltaTime);
@@ -683,7 +687,7 @@
                 this.width = 140; this.height = 130;
                 this.y = PLAYER_GROUND_LEVEL + PLAYER_DRAW_HEIGHT - this.height + 20;
                 this.speedModifier = 1.0;
-                this.hitbox = { offsetX: 35, offsetY: 45 , width: 75, height: 45 };
+                this.hitbox = { offsetX: 35, offsetY: 35 , width: 75, height: 45 };
             }
             draw() {
                  if (this.image.complete && this.image.naturalWidth > 0) {
