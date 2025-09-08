@@ -17,7 +17,7 @@
         /* Define the custom font */
         @font-face {
             font-family: 'Amanojaku';
-            src: url('Amanojaku Demo.otf') format('opentype');
+            src: url('https://maxedoutpotato.github.io/NinjaRunnerGame/Amanojaku%20Demo.otf') format('opentype');
         }
 
         /* Basic styling to center the game and make it look clean */
@@ -93,7 +93,7 @@
         const PLAYER_SPRITE_HEIGHT = 100;
         const PLAYER_DRAW_WIDTH = 100;
         const PLAYER_DRAW_HEIGHT = 100;
-        const DEBUG_MODE = true; // Set to true to see hitboxes
+        const DEBUG_MODE = false; // Set to true to see hitboxes
         
         // --- Physics vs Visuals ---
         const GROUND_HEIGHT_PHYSICS = 68;
@@ -216,12 +216,13 @@
         };
 
         // --- Asset Loading ---
+        const GITHUB_REPO_URL = 'https://maxedoutpotato.github.io/NinjaRunnerGame/';
         const images = {};
         const sounds = {};
         const imageSources = {
-            menuIntro: isMobile ? 'Assets/Menu/Intro.mobile.png' : 'Assets/Menu/Intro.png',
-            menuLoop: isMobile ? 'Assets/Menu/Loop.mobile.png' : 'Assets/Menu/Loop.png',
-            menuOutro: isMobile ? 'Assets/Menu/Outro.mobile.png' : 'Assets/Menu/Outro.png',
+            menuIntro: `Assets/Menu/${isMobile ? 'Intro.mobile.png' : 'Intro.png'}`,
+            menuLoop: `Assets/Menu/${isMobile ? 'Loop.mobile.png' : 'Loop.png'}`,
+            menuOutro: `Assets/Menu/${isMobile ? 'Outro.mobile.png' : 'Outro.png'}`,
             button: 'Assets/Menu/Button.png',
             rotate: 'Assets/Menu/Rotate.png',
             tap: 'Assets/Menu/Tap.png',
@@ -260,19 +261,22 @@
         function preloadAssets() {
             for (const key in imageSources) {
                 images[key] = new Image();
-                images[key].src = imageSources[key];
+                images[key].src = GITHUB_REPO_URL + imageSources[key];
                 images[key].onload = assetLoaded;
-                images[key].onerror = () => console.error(`Failed to load image: ${imageSources[key]}`);
+                images[key].onerror = () => console.error(`Failed to load image: ${images[key].src}`);
             }
             for (const key in soundSources) {
                 sounds[key] = new Audio();
-                sounds[key].src = soundSources[key];
+                sounds[key].src = GITHUB_REPO_URL + soundSources[key];
                 if (key === 'track' || key === 'intro' || key === 'gecko') sounds[key].loop = true;
-                sounds[key].oncanplaythrough = assetLoaded;
-                sounds[key].onerror = () => console.error(`Failed to load sound: ${soundSources[key]}`);
+                // 'canplaythrough' is more reliable for knowing an asset is ready.
+                sounds[key].addEventListener('canplaythrough', assetLoaded, { once: true });
+                sounds[key].onerror = () => console.error(`Failed to load sound: ${sounds[key].src}`);
             }
         }
-        function assetLoaded() { assetsLoaded++; }
+        function assetLoaded() {
+            assetsLoaded++;
+        }
 
         // --- Input Handling ---
         function handleJump() {
@@ -314,9 +318,9 @@
 
             if (event.code === 'Space' || event.code === 'ArrowUp') {
                  if (menuState === 'pre-menu') {
-                    unlockAudio();
-                    return;
-                }
+                     unlockAudio();
+                     return;
+                 }
                 if ((gameOver || gameWon) && canRestart) {
                     isRestarting = true;
                     canRestart = false;
@@ -388,19 +392,19 @@
         });
         canvas.addEventListener('mousedown', (evt) => {
              if (restartButton.isHovered && canRestart) {
-                restartButton.isPressed = true;
+                 restartButton.isPressed = true;
             }
         });
          canvas.addEventListener('mouseup', (evt) => {
              if (restartButton.isPressed) {
-                restartButton.isPressed = false;
-                isResetting = true;
-                menuState = 'intro';
-                menuFrame = 0;
-                menuFrameTimer = 0;
-                canRestart = false;
-                sounds.gateClose.play();
-                if(sounds.gecko) sounds.gecko.pause();
+                 restartButton.isPressed = false;
+                 isResetting = true;
+                 menuState = 'intro';
+                 menuFrame = 0;
+                 menuFrameTimer = 0;
+                 canRestart = false;
+                 sounds.gateClose.play();
+                 if(sounds.gecko) sounds.gecko.pause();
             }
         });
 
@@ -421,7 +425,7 @@
                      touchPos.x <= restartButton.x + restartButton.width + buttonPadding &&
                      touchPos.y >= restartButton.y - buttonPadding && 
                      touchPos.y <= restartButton.y + restartButton.height + buttonPadding) {
-                    restartButton.isPressed = true;
+                     restartButton.isPressed = true;
                  } else {
                      isRestarting = true;
                      canRestart = false;
@@ -477,6 +481,7 @@
             if (audioContext.state === 'suspended') {
                 audioContext.resume();
             }
+            // A tiny silent sound is played on user interaction to unlock audio playback.
             for (const key in sounds) {
                 sounds[key].play().then(() => {
                     sounds[key].pause();
@@ -883,48 +888,156 @@
                 player.frame = 0;
             }
         }
-        function update(deltaTime) {
+
+        function fullGameReset(fromSpacebar = false) {
+            isResetting = false;
             
+            if(!fromSpacebar) {
+                menuState = 'loop';
+                menuFrame = 0;
+                menuFrameTimer = 0;
+                sounds.intro.currentTime = 0;
+                sounds.intro.play();
+            }
+
+            gameOver = false; gameWon = false; gameSpeed = 300; score = 0;
+            gameOverFade = 0; uiFadeInTimer = 0;
+            obstaclesArray = []; sceneryArray = []; effectsArray = []; floatingScores = [];
+            scoreMilestone = 1; teleportCharges = 0; inversionAmount = 0; inversionTarget = 0;
+            scoreBounceTimer = 0; teleportBounceTimer = 0;
+            bonusSpawns = {
+                teleportGold: { '3000': 0, '9000': 0, '15000': 0 },
+                bonusPoints: { '3000': 0, '6000': 0, '9000': 0, '12000': 0, '15000': 0, '19000': 0, '21000': 0 }
+            };
+            player.y = PLAYER_GROUND_LEVEL; player.state = 'run'; player.frame = 0; player.frameTimer = 0;
+            player.isJumping = false; player.isCrouching = false; player.isTeleporting = false; player.velocityY = 0;
+            
+            if (fromSpacebar) {
+                startGame(); // startGame now handles all setup
+            } else {
+                gameStarted = false;
+            }
+        }
+
+        // --- Game/Menu Loops ---
+        function updateMenu(deltaTime) {
+            menuFrameTimer += deltaTime;
+            let stateData;
+            if (menuState === 'intro') stateData = animationStates.menuIntro;
+            else if (menuState === 'loop') stateData = animationStates.menuLoop;
+            else if (menuState === 'outro') stateData = animationStates.menuOutro;
+
+            if (stateData && menuFrameTimer >= stateData.frameDuration) {
+                menuFrame++;
+                menuFrameTimer = 0;
+                
+                if (menuState === 'intro' && menuFrame >= stateData.frames) {
+                    if (isResetting) {
+                        fullGameReset();
+                    } else {
+                        menuState = 'loop';
+                        menuFrame = 0;
+                    }
+                } else if (menuState === 'loop' && menuFrame >= stateData.frames) {
+                    menuFrame = 0; // Loop the animation
+                } else if (menuState === 'outro' && menuFrame >= stateData.frames) {
+                    menuState = 'inactive';
+                }
+            }
+        }
+
+        function startGame() {
+            gameStarted = true;
+            sounds.start.play();
+            sounds.roll.play();
+            sounds.track.currentTime = 0;
+            sounds.track.play();
+            // This was missing before, causing the run cloud not to appear at the start.
+            effectsArray.push(new RunCloud());
+        }
+        
+        // --- Main Update and Draw Functions ---
+
+        /**
+         * The main UPDATE function. It handles all game logic, state changes, and physics.
+         * It is called on every frame by mainLoop.
+         * @param {number} deltaTime The time in seconds since the last frame.
+         */
+        function update(deltaTime) {
+            // --- Universal Updates (run regardless of game state) ---
+            // Update the 'rotate device' animation
+            rotateFrameTimer += deltaTime;
+            const rotateData = animationStates.rotate;
+            if (rotateFrameTimer >= rotateData.frameDuration) {
+                rotateFrame = (rotateFrame + 1) % rotateData.frames;
+                rotateFrameTimer = 0;
+            }
+
+            // --- State-Specific Updates ---
+            // Handle the fade-to-white restart transition
             if (isRestarting) {
                 restartFadeAmount += 2 * fadeDirection * deltaTime;
                 if (restartFadeAmount >= 1 && fadeDirection === 1) {
                     fadeDirection = -1;
-                    fullGameReset(true); // true means it came from a spacebar restart
+                    fullGameReset(true);
                 }
                 if (restartFadeAmount <= 0 && fadeDirection === -1) {
                     isRestarting = false;
                     fadeDirection = 1;
                 }
-                return;
+                return; // Don't run any other logic during this transition
             }
 
-            if (isResetting) {
-                updateMenu(deltaTime);
-                return;
+            // Handle menu states (pre-menu, intro, loop, outro)
+            if (!gameStarted || isResetting || menuState === 'outro') {
+                if (isResetting) {
+                    updateMenu(deltaTime);
+                    return; // Don't run game logic while resetting to menu
+                }
+                if (menuState === 'pre-menu') {
+                    preMenuFrameTimer += deltaTime;
+                    const preMenuAnimation = isMobile ? animationStates.tap : animationStates.space;
+                    if (preMenuFrameTimer >= preMenuAnimation.frameDuration) {
+                        preMenuFrame = (preMenuFrame + 1) % preMenuAnimation.frames;
+                        preMenuFrameTimer = 0;
+                    }
+                } else {
+                    updateMenu(deltaTime);
+                }
+                // If the game hasn't truly started (i.e., we're still in a menu), stop here.
+                if (!gameStarted || menuState !== 'inactive') {
+                    return;
+                }
             }
-
-            if (menuState !== 'inactive') {
-                updateMenu(deltaTime);
+            
+            // --- Active Gameplay Logic (only runs when the game is truly active) ---
+            handleScenery(deltaTime);
+            handleObstacles(deltaTime);
+            checkCollisionsAndScore();
+            
+            // Update floating score positions and lifetimes
+            for (let i = floatingScores.length - 1; i >= 0; i--) {
+                floatingScores[i].update(deltaTime);
+                if (floatingScores[i].opacity <= 0) {
+                    floatingScores.splice(i, 1);
+                }
             }
-            if (!gameStarted) return;
-
 
             if (gameOver || gameWon) {
-                if (gameSpeed > 0) gameSpeed -= 800 * deltaTime; // Faster stop
+                if (gameSpeed > 0) gameSpeed -= 800 * deltaTime;
                 else gameSpeed = 0;
                 effectsArray.forEach(effect => { if(effect instanceof RunCloud) effect.startFading() });
-                if (gameOver && gameOverFade < 1) gameOverFade += 2 * deltaTime; // Faster fade in
+                if (gameOver && gameOverFade < 1) gameOverFade += 2 * deltaTime;
             } else {
                 gameSpeed += speedIncreaseRate * 60 * deltaTime;
             }
             
             if (isHoldingTouch && gameStarted && !player.isJumping) {
                 const holdDuration = Date.now() - touchStartTime;
-                if (holdDuration > 200) { // 200ms threshold for a hold
+                if (holdDuration > 200) {
                     handleCrouchStart();
                 }
             }
-
 
             if (scoreBounceTimer > 0) scoreBounceTimer -= deltaTime;
             if (teleportBounceTimer > 0) teleportBounceTimer -= deltaTime;
@@ -957,7 +1070,7 @@
             const bg2_scaledWidth = images.background2 ? images.background2.width * BG2_SCALE : 0;
             const grass_scaledWidth = images.grass ? images.grass.width * GRASS_SCALE : 0;
 
-            if (groundX <= -images.ground.width) groundX += images.ground.width;
+            if (images.ground && groundX <= -images.ground.width) groundX += images.ground.width;
             if (bg1_scaledWidth > 0 && bg1X <= -bg1_scaledWidth) bg1X += bg1_scaledWidth;
             if (bg2_scaledWidth > 0 && bg2X <= -bg2_scaledWidth) bg2X += bg2_scaledWidth;
             if (grass_scaledWidth > 0 && grassX <= -grass_scaledWidth) grassX += grass_scaledWidth;
@@ -996,79 +1109,21 @@
             effectsArray.forEach(effect => effect.update(deltaTime));
             effectsArray = effectsArray.filter(effect => !effect.markedForDeletion);
         }
-
-        function fullGameReset(fromSpacebar = false) {
-            isResetting = false;
-            
-            if(!fromSpacebar) {
-                menuState = 'loop';
-                menuFrame = 0;
-                menuFrameTimer = 0;
-                sounds.intro.currentTime = 0;
-                sounds.intro.play();
-            }
-
-            gameOver = false; gameWon = false; gameSpeed = 300; score = 0;
-            gameOverFade = 0; uiFadeInTimer = 0;
-            obstaclesArray = []; sceneryArray = []; effectsArray = []; floatingScores = [];
-            scoreMilestone = 1; teleportCharges = 0; inversionAmount = 0; inversionTarget = 0;
-            scoreBounceTimer = 0; teleportBounceTimer = 0;
-            bonusSpawns = {
-                teleportGold: { '3000': 0, '9000': 0, '15000': 0 },
-                bonusPoints: { '3000': 0, '6000': 0, '9000': 0, '12000': 0, '15000': 0, '19000': 0, '21000': 0 }
-            };
-            player.y = PLAYER_GROUND_LEVEL; player.state = 'run'; player.frame = 0; player.frameTimer = 0;
-            player.isJumping = false; player.isCrouching = false; player.isTeleporting = false; player.velocityY = 0;
-            
-            if (fromSpacebar) {
-                gameStarted = true;
-                sounds.start.play();
-                sounds.roll.play();
-                effectsArray.push(new RunCloud());
-                sounds.track.currentTime = 0;
-                sounds.track.play();
-            } else {
-                gameStarted = false;
-            }
-        }
-
+        
+        /**
+         * The main DRAW function. It handles all rendering to the canvas.
+         * It is called on every frame by mainLoop, after update().
+         */
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             if (menuState === 'pre-menu') {
-                 if ((isMobile && images.tap) || (!isMobile && images.space)) {
-                    const preMenuImage = isMobile ? images.tap : images.space;
-                    const stateData = isMobile ? animationStates.tap : animationStates.space;
-                    const columns = stateData.columns;
-                    const frameX = preMenuFrame % columns;
-                    const frameY = Math.floor(preMenuFrame / columns);
-                    const sourceX = frameX * stateData.spriteWidth;
-                    const sourceY = frameY * stateData.spriteHeight;
-                    ctx.drawImage(preMenuImage, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, 0, 0, canvas.width, canvas.height);
-                }
-                return;
+                drawPreMenu();
+                return; // Nothing else to draw
             }
-
+            
             if (isResetting) {
-                 if (gameOver || gameWon) {
-                    ctx.save();
-                    ctx.filter = `invert(${inversionAmount * 100}%)`;
-                    ctx.fillStyle = '#f0f0f0';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    if (gameOver) {
-                        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                        ctx.font = '70px Amanojaku';
-                        ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
-                    }
-                    if (gameWon) {
-                         ctx.fillStyle = 'rgba(255, 255, 255, 1)';
-                        ctx.fillRect(0, 0, canvas.width, canvas.height);
-                        ctx.fillStyle = 'black';
-                        ctx.font = '50px Amanojaku';
-                        ctx.fillText('YOU WIN', canvas.width / 2, canvas.height / 2 - 20);
-                    }
-                    ctx.restore();
-                }
+                drawGameOverStateForReset();
                 drawMenu();
                 return;
             }
@@ -1076,145 +1131,159 @@
             if (menuState === 'intro' || menuState === 'loop') {
                 drawMenu();
             } else {
-                ctx.save();
-                ctx.filter = `invert(${inversionAmount * 100}%)`;
-                ctx.fillStyle = '#f0f0f0';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                if (images.background2 && images.background2.complete && images.background2.naturalWidth > 0) {
-                    const scaledWidth = images.background2.width * BG2_SCALE;
-                    const scaledHeight = (images.background2.naturalHeight / images.background2.naturalWidth) * scaledWidth;
-                    ctx.drawImage(images.background2, Math.floor(bg2X), BG2_Y_POS, scaledWidth, scaledHeight);
-                    ctx.drawImage(images.background2, Math.floor(bg2X + scaledWidth) - 1, BG2_Y_POS, scaledWidth, scaledHeight);
-                    ctx.drawImage(images.background2, Math.floor(bg2X + scaledWidth * 2) - 2, BG2_Y_POS, scaledWidth, scaledHeight);
-                }
-                sceneryArray.forEach(item => item.draw());
-                if (images.background1 && images.background1.complete && images.background1.naturalWidth > 0) {
-                    const scaledWidth = images.background1.width * BG1_SCALE;
-                    const scaledHeight = (images.background1.naturalHeight / images.background1.naturalWidth) * scaledWidth;
-                    ctx.drawImage(images.background1, Math.floor(bg1X), BG1_Y_POS, scaledWidth, scaledHeight);
-                    ctx.drawImage(images.background1, Math.floor(bg1X + scaledWidth) - 1, BG1_Y_POS, scaledWidth, scaledHeight);
-                    ctx.drawImage(images.background1, Math.floor(bg1X + scaledWidth * 2) - 2, BG1_Y_POS, scaledWidth, scaledHeight);
-                }
-                if (images.ground.complete && images.ground.naturalWidth > 0) {
-                    const groundY = canvas.height - GROUND_HEIGHT_PHYSICS + VISUAL_GROUND_Y_OFFSET;
-                    ctx.drawImage(images.ground, Math.floor(groundX), groundY, images.ground.width, VISUAL_GROUND_HEIGHT);
-                    ctx.drawImage(images.ground, Math.floor(groundX + images.ground.width) -1, groundY, images.ground.width, VISUAL_GROUND_HEIGHT);
-                    ctx.drawImage(images.ground, Math.floor(groundX + images.ground.width * 2) -2, groundY, images.ground.width, VISUAL_GROUND_HEIGHT);
-                }
-                obstaclesArray.forEach(obstacle => obstacle.draw());
-                effectsArray.forEach(effect => effect.draw());
-                if (!player.isTeleporting) {
-                    const playerStateData = animationStates[player.state];
-                    if (images[player.state] && images[player.state].complete) {
-                        const columns = playerStateData.columns;
-                        const frameX = player.frame % columns;
-                        const frameY = Math.floor(player.frame / columns);
-                        const sourceX = frameX * PLAYER_SPRITE_WIDTH;
-                        const sourceY = frameY * PLAYER_SPRITE_HEIGHT;
-                        ctx.drawImage(images[player.state], sourceX, sourceY, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT, player.x, player.y, player.width, player.height);
-                        if (DEBUG_MODE) {
-                            ctx.strokeStyle = 'black';
-                            ctx.lineWidth = 2;
-                            let currentHitbox = player.isCrouching ? player.crouchHitbox : player.hitbox;
-                            ctx.strokeRect(player.x + currentHitbox.offsetX, player.y + currentHitbox.offsetY, currentHitbox.width, currentHitbox.height);
-                        }
-                    }
-                }
-                if (images.grass && images.grass.complete && images.grass.naturalWidth > 0) {
-                    const scaledWidth = images.grass.width * GRASS_SCALE;
-                    const scaledHeight = images.grass.height * GRASS_SCALE;
-                    ctx.drawImage(images.grass, Math.floor(grassX), GRASS_Y_POS, scaledWidth, scaledHeight);
-                    ctx.drawImage(images.grass, Math.floor(grassX + scaledWidth) - 1, GRASS_Y_POS, scaledWidth, scaledHeight);
-                    ctx.drawImage(images.grass, Math.floor(grassX + scaledWidth * 2) - 2, GRASS_Y_POS, scaledWidth, scaledHeight);
-                }
-                
+                // This block draws the main game world.
+                // It runs during 'outro', 'inactive', and game over states.
+                drawGameWorld();
+
+                // If the gate is opening, draw it on top of the game world.
                 if (menuState === 'outro') {
-                    drawMenu(); // Will only draw the outro frame
+                    drawMenu();
                 }
 
-                for (let i = floatingScores.length - 1; i >= 0; i--) {
-                    floatingScores[i].update(1/60);
-                    floatingScores[i].draw();
-                    if (floatingScores[i].opacity <= 0) { floatingScores.splice(i, 1); }
-                }
-                
-                // Draw Score with mixed fonts
-                ctx.save();
-                if (gameStarted) uiFadeInTimer = Math.min(1, uiFadeInTimer + deltaTime);
-                ctx.globalAlpha = uiFadeInTimer;
-                ctx.textAlign = 'right';
-                const scoreNumberText = score.toString();
-                
-                let scoreFontSize = 30;
-                if (scoreBounceTimer > 0) {
-                    const bounceScale = 1 + Math.sin(scoreBounceTimer * (1/0.5) * Math.PI) * 0.5; // Pulse effect
-                    scoreFontSize *= bounceScale;
-                    ctx.fillStyle = 'red';
-                } else {
-                    ctx.fillStyle = 'black';
-                }
-                
-                ctx.font = `${scoreFontSize}px Amanojaku`;
-                const scoreNumberWidth = ctx.measureText(scoreNumberText).width;
-                ctx.fillText(scoreNumberText, canvas.width - 20, 40);
-                
-                ctx.fillStyle = 'black'; // Reset color for the label
-                ctx.font = 'bold 24px "Segoe UI"';
-                ctx.fillText('SCORE: ', canvas.width - 20 - scoreNumberWidth, 40);
+                // Draw UI elements like score, which fade in.
+                drawUI();
 
-                // Draw Teleport Counter with mixed fonts
-                ctx.textAlign = 'left';
-                if (teleportCharges > 0 && images.teleportLogo.complete) {
-                    ctx.drawImage(images.teleportLogo, 20, 15, 40, 40);
-
-                    let teleportFontSize = 30;
-                    if(teleportBounceTimer > 0) {
-                        const bounceScale = 1 + Math.sin(teleportBounceTimer * Math.PI) * 0.5;
-                        teleportFontSize *= bounceScale;
-                        ctx.fillStyle = `hsl(${ (1 - teleportBounceTimer) * 360 }, 100%, 50%)`;
-                    } else {
-                        ctx.fillStyle = 'black';
-                    }
-
-                    ctx.font = `${teleportFontSize}px Amanojaku`;
-                    ctx.fillText('x', 65, 45);
-                    const x_width = ctx.measureText('x').width;
-
-                    ctx.font = `bold ${teleportFontSize}px "Segoe UI"`;
-                    ctx.fillText(teleportCharges, 65 + x_width, 45);
-                }
-                ctx.restore();
-                ctx.textAlign = 'center';
-
-                if (gameOver) {
-                    ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * gameOverFade})`;
-                    ctx.font = '70px Amanojaku';
-                    ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
-                    if (canRestart) {
-                        ctx.fillStyle = `rgba(0, 0, 0, ${1 * gameOverFade})`;
-                        ctx.font = 'bold 20px "Segoe UI"';
-                        ctx.fillText('press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
-                        drawRestartButton();
-                    }
-                }
-                if (gameWon) {
-                    ctx.fillStyle = 'rgba(255, 255, 255, 1)';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    ctx.fillStyle = 'black';
-                    ctx.font = '50px Amanojaku';
-                    ctx.fillText('YOU WIN', canvas.width / 2, canvas.height / 2 - 20);
-                    if (canRestart) {
-                        ctx.font = 'bold 20px "Segoe UI"';
-                        ctx.fillText('Press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
-                        drawRestartButton();
-                    }
-                }
-                ctx.restore();
+                // Draw game over or win screens if applicable.
+                drawEndScreens();
             }
 
+            // Draw the fade-to-white overlay for instant restarts.
             if (isRestarting) {
                 ctx.fillStyle = `rgba(255, 255, 255, ${restartFadeAmount})`;
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        function drawGameWorld() {
+             ctx.save();
+             ctx.filter = `invert(${inversionAmount * 100}%)`;
+             ctx.fillStyle = '#f0f0f0';
+             ctx.fillRect(0, 0, canvas.width, canvas.height);
+             if (images.background2 && images.background2.complete && images.background2.naturalWidth > 0) {
+                 const scaledWidth = images.background2.width * BG2_SCALE;
+                 const scaledHeight = (images.background2.naturalHeight / images.background2.naturalWidth) * scaledWidth;
+                 ctx.drawImage(images.background2, Math.floor(bg2X), BG2_Y_POS, scaledWidth, scaledHeight);
+                 ctx.drawImage(images.background2, Math.floor(bg2X + scaledWidth) - 1, BG2_Y_POS, scaledWidth, scaledHeight);
+                 ctx.drawImage(images.background2, Math.floor(bg2X + scaledWidth * 2) - 2, BG2_Y_POS, scaledWidth, scaledHeight);
+             }
+             sceneryArray.forEach(item => item.draw());
+             if (images.background1 && images.background1.complete && images.background1.naturalWidth > 0) {
+                 const scaledWidth = images.background1.width * BG1_SCALE;
+                 const scaledHeight = (images.background1.naturalHeight / images.background1.naturalWidth) * scaledWidth;
+                 ctx.drawImage(images.background1, Math.floor(bg1X), BG1_Y_POS, scaledWidth, scaledHeight);
+                 ctx.drawImage(images.background1, Math.floor(bg1X + scaledWidth) - 1, BG1_Y_POS, scaledWidth, scaledHeight);
+                 ctx.drawImage(images.background1, Math.floor(bg1X + scaledWidth * 2) - 2, BG1_Y_POS, scaledWidth, scaledHeight);
+             }
+             if (images.ground.complete && images.ground.naturalWidth > 0) {
+                 const groundY = canvas.height - GROUND_HEIGHT_PHYSICS + VISUAL_GROUND_Y_OFFSET;
+                 ctx.drawImage(images.ground, Math.floor(groundX), groundY, images.ground.width, VISUAL_GROUND_HEIGHT);
+                 ctx.drawImage(images.ground, Math.floor(groundX + images.ground.width) -1, groundY, images.ground.width, VISUAL_GROUND_HEIGHT);
+                 ctx.drawImage(images.ground, Math.floor(groundX + images.ground.width * 2) -2, groundY, images.ground.width, VISUAL_GROUND_HEIGHT);
+             }
+             obstaclesArray.forEach(obstacle => obstacle.draw());
+             effectsArray.forEach(effect => effect.draw());
+             if (!player.isTeleporting) {
+                 const playerStateData = animationStates[player.state];
+                 if (images[player.state] && images[player.state].complete) {
+                     const columns = playerStateData.columns;
+                     const frameX = player.frame % columns;
+                     const frameY = Math.floor(player.frame / columns);
+                     const sourceX = frameX * PLAYER_SPRITE_WIDTH;
+                     const sourceY = frameY * PLAYER_SPRITE_HEIGHT;
+                     ctx.drawImage(images[player.state], sourceX, sourceY, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT, player.x, player.y, player.width, player.height);
+                     if (DEBUG_MODE) {
+                         ctx.strokeStyle = 'black';
+                         ctx.lineWidth = 2;
+                         let currentHitbox = player.isCrouching ? player.crouchHitbox : player.hitbox;
+                         ctx.strokeRect(player.x + currentHitbox.offsetX, player.y + currentHitbox.offsetY, currentHitbox.width, currentHitbox.height);
+                     }
+                 }
+             }
+             if (images.grass && images.grass.complete && images.grass.naturalWidth > 0) {
+                 const scaledWidth = images.grass.width * GRASS_SCALE;
+                 const scaledHeight = images.grass.height * GRASS_SCALE;
+                 ctx.drawImage(images.grass, Math.floor(grassX), GRASS_Y_POS, scaledWidth, scaledHeight);
+                 ctx.drawImage(images.grass, Math.floor(grassX + scaledWidth) - 1, GRASS_Y_POS, scaledWidth, scaledHeight);
+                 ctx.drawImage(images.grass, Math.floor(grassX + scaledWidth * 2) - 2, GRASS_Y_POS, scaledWidth, scaledHeight);
+             }
+             
+             floatingScores.forEach(fs => fs.draw());
+             
+             ctx.restore();
+        }
+
+        function drawUI() {
+            ctx.save();
+            if (gameStarted) uiFadeInTimer = Math.min(1, uiFadeInTimer + (1/60)); // Simple fade-in
+            ctx.globalAlpha = uiFadeInTimer;
+            ctx.textAlign = 'right';
+            const scoreNumberText = score.toString();
+            
+            let scoreFontSize = 30;
+            if (scoreBounceTimer > 0) {
+                const bounceScale = 1 + Math.sin(scoreBounceTimer * (1/0.5) * Math.PI) * 0.5; // Pulse effect
+                scoreFontSize *= bounceScale;
+                ctx.fillStyle = 'red';
+            } else {
+                ctx.fillStyle = 'black';
+            }
+            
+            ctx.font = `${scoreFontSize}px Amanojaku`;
+            const scoreNumberWidth = ctx.measureText(scoreNumberText).width;
+            ctx.fillText(scoreNumberText, canvas.width - 20, 40);
+            
+            ctx.fillStyle = 'black'; // Reset color for the label
+            ctx.font = 'bold 24px "Segoe UI"';
+            ctx.fillText('SCORE: ', canvas.width - 20 - scoreNumberWidth, 40);
+
+            // Draw Teleport Counter
+            ctx.textAlign = 'left';
+            if (teleportCharges > 0 && images.teleportLogo.complete) {
+                ctx.drawImage(images.teleportLogo, 20, 15, 40, 40);
+
+                let teleportFontSize = 30;
+                if(teleportBounceTimer > 0) {
+                    const bounceScale = 1 + Math.sin(teleportBounceTimer * Math.PI) * 0.5;
+                    teleportFontSize *= bounceScale;
+                    ctx.fillStyle = `hsl(${ (1 - teleportBounceTimer) * 360 }, 100%, 50%)`;
+                } else {
+                    ctx.fillStyle = 'black';
+                }
+
+                ctx.font = `${teleportFontSize}px Amanojaku`;
+                ctx.fillText('x', 65, 45);
+                const x_width = ctx.measureText('x').width;
+
+                ctx.font = `bold ${teleportFontSize}px "Segoe UI"`;
+                ctx.fillText(teleportCharges, 65 + x_width, 45);
+            }
+            ctx.restore();
+            ctx.textAlign = 'center';
+        }
+
+        function drawEndScreens() {
+            if (gameOver) {
+                ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * gameOverFade})`;
+                ctx.font = '70px Amanojaku';
+                ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
+                if (canRestart) {
+                    ctx.fillStyle = `rgba(0, 0, 0, ${1 * gameOverFade})`;
+                    ctx.font = 'bold 20px "Segoe UI"';
+                    ctx.fillText(isMobile ? 'Tap to restart' : 'press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
+                    drawRestartButton();
+                }
+            }
+            if (gameWon) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 1)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = 'black';
+                ctx.font = '50px Amanojaku';
+                ctx.fillText('YOU WIN', canvas.width / 2, canvas.height / 2 - 20);
+                if (canRestart) {
+                    ctx.font = 'bold 20px "Segoe UI"';
+                    ctx.fillText(isMobile ? 'Tap to restart' : 'press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
+                    drawRestartButton();
+                }
             }
         }
         
@@ -1244,30 +1313,16 @@
             }
         }
 
-        // --- Game/Menu Loops ---
-        function updateMenu(deltaTime) {
-            menuFrameTimer += deltaTime;
-            let stateData;
-            if (menuState === 'intro') stateData = animationStates.menuIntro;
-            else if (menuState === 'loop') stateData = animationStates.menuLoop;
-            else if (menuState === 'outro') stateData = animationStates.menuOutro;
-
-            if (stateData && menuFrameTimer >= stateData.frameDuration) {
-                menuFrame++;
-                menuFrameTimer = 0;
-                
-                if (menuState === 'intro' && menuFrame >= stateData.frames) {
-                    if (isResetting) {
-                        fullGameReset();
-                    } else {
-                        menuState = 'loop';
-                        menuFrame = 0;
-                    }
-                } else if (menuState === 'loop' && menuFrame >= stateData.frames) {
-                    menuFrame = 0; // Loop the animation
-                } else if (menuState === 'outro' && menuFrame >= stateData.frames) {
-                    menuState = 'inactive';
-                }
+        function drawPreMenu() {
+            if ((isMobile && images.tap) || (!isMobile && images.space)) {
+                const preMenuImage = isMobile ? images.tap : images.space;
+                const stateData = isMobile ? animationStates.tap : animationStates.space;
+                const columns = stateData.columns;
+                const frameX = preMenuFrame % columns;
+                const frameY = Math.floor(preMenuFrame / columns);
+                const sourceX = frameX * stateData.spriteWidth;
+                const sourceY = frameY * stateData.spriteHeight;
+                ctx.drawImage(preMenuImage, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, 0, 0, canvas.width, canvas.height);
             }
         }
 
@@ -1296,48 +1351,26 @@
             }
         }
 
-        function startGame() {
-            gameStarted = true;
-            sounds.start.play();
-            sounds.roll.play();
-            sounds.track.play();
-        }
-
-        function mainLoop(currentTime) {
-            if (!lastTime) lastTime = currentTime;
-            const deltaTime = (currentTime - lastTime) / 1000;
-            lastTime = currentTime;
-
-            // Always update the rotate animation
-            rotateFrameTimer += deltaTime;
-            const rotateData = animationStates.rotate;
-            if (rotateFrameTimer >= rotateData.frameDuration) {
-                rotateFrame = (rotateFrame + 1) % rotateData.frames;
-                rotateFrameTimer = 0;
-            }
-
-            if (menuState === 'pre-menu') {
-                 preMenuFrameTimer += deltaTime;
-                 const preMenuAnimation = isMobile ? animationStates.tap : animationStates.space;
-                 if (preMenuFrameTimer >= preMenuAnimation.frameDuration) {
-                     preMenuFrame = (preMenuFrame + 1) % preMenuAnimation.frames;
-                     preMenuFrameTimer = 0;
+        function drawGameOverStateForReset() {
+             if (gameOver || gameWon) {
+                 ctx.save();
+                 ctx.filter = `invert(${inversionAmount * 100}%)`;
+                 ctx.fillStyle = '#f0f0f0';
+                 ctx.fillRect(0, 0, canvas.width, canvas.height);
+                 if (gameOver) {
+                     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                     ctx.font = '70px Amanojaku';
+                     ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
                  }
-            } else if(isResetting) {
-                updateMenu(deltaTime);
-            } else if(gameStarted) {
-                update(deltaTime);
-                handleScenery(deltaTime);
-                handleObstacles(deltaTime);
-                checkCollisionsAndScore();
-            } else {
-                updateMenu(deltaTime);
-            }
-            
-            draw();
-            drawRotateCanvas();
-            
-            requestAnimationFrame(mainLoop);
+                 if (gameWon) {
+                      ctx.fillStyle = 'rgba(255, 255, 255, 1)';
+                     ctx.fillRect(0, 0, canvas.width, canvas.height);
+                     ctx.fillStyle = 'black';
+                     ctx.font = '50px Amanojaku';
+                     ctx.fillText('YOU WIN', canvas.width / 2, canvas.height / 2 - 20);
+                 }
+                 ctx.restore();
+             }
         }
         
         function drawRotateCanvas() {
@@ -1353,6 +1386,22 @@
             }
         }
         
+        /**
+         * The absolute main loop, powered by requestAnimationFrame.
+         * This is the engine of the game.
+         */
+        function mainLoop(currentTime) {
+            if (!lastTime) lastTime = currentTime;
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+
+            update(deltaTime);
+            draw();
+            drawRotateCanvas();
+            
+            requestAnimationFrame(mainLoop);
+        }
+        
         function initialDraw() {
             if (assetsLoaded < totalAssets) {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1360,9 +1409,10 @@
                 ctx.font = '20px "Segoe UI"';
                 ctx.textAlign = 'center';
                 ctx.fillText(`Loading... ${Math.round((assetsLoaded / totalAssets) * 100)}%`, canvas.width / 2, canvas.height / 2);
-                setTimeout(initialDraw, 50);
+                requestAnimationFrame(initialDraw); // Use rAF for a smooth loading bar
                 return;
             }
+            // Once all assets are loaded, start the main game loop.
             lastTime = performance.now();
             mainLoop(lastTime);
         }
@@ -1373,4 +1423,3 @@
     </script>
 </body>
 </html>
-
