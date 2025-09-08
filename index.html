@@ -38,7 +38,7 @@
             background-color: #f0f0f0;
             border-radius: 12px;
             box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-            /* This makes the canvas responsive */
+            /* Responsive canvas styling */
             width: 100%;
             height: 100%;
             object-fit: contain;
@@ -149,7 +149,6 @@
         let sceneryArray = [];
         let effectsArray = [];
         let score = 0;
-        let uiFadeInTimer = 0;
         let floatingScores = [];
         let scoreMilestone = 1;
         let scoreBounceTimer = 0;
@@ -187,7 +186,7 @@
             velocityY: 0, isJumping: false, isCrouching: false, isTeleporting: false,
             frame: 0, frameTimer: 0, state: 'run',
             hitbox: { offsetX: 20, offsetY: 30, width: 65, height: 40 },
-            crouchHitbox: { offsetX: 10, offsetY: 20, width: 70, height: 30 }
+            crouchHitbox: { offsetX: 10, offsetY: 50, width: 70, height: 30 }
         };
         
         // --- Restart Button State ---
@@ -484,12 +483,9 @@
                 }).catch(e => {});
             }
             audioUnlocked = true;
-            
-            setTimeout(() => {
-                menuState = 'intro'; // Start the menu animation after audio is unlocked
-                sounds.intro.play();
-                sounds.gateClose.play();
-            }, 100); // A small delay to ensure context is ready
+            menuState = 'intro'; // Start the menu animation after audio is unlocked
+            sounds.intro.play();
+            sounds.gateClose.play();
         }
 
         // --- All Classes (Full logic restored) ---
@@ -640,7 +636,7 @@
                 this.spriteWidth = 50; this.spriteHeight = 50;
                 this.width = 70; this.height = 70;
                 this.y = SHURIKEN_FLYING_HEIGHTS[Math.floor(Math.random() * SHURIKEN_FLYING_HEIGHTS.length)];
-                this.speedModifier = 1.1; this.hitbox = { offsetX: 10, offsetY: 20, width: 45, height: 40 };
+                this.speedModifier = 1.1; this.hitbox = { offsetX: 15, offsetY: 10, width: 45, height: 40 };
             }
             update(deltaTime) {
                 super.update(deltaTime);
@@ -687,7 +683,7 @@
                 this.width = 140; this.height = 130;
                 this.y = PLAYER_GROUND_LEVEL + PLAYER_DRAW_HEIGHT - this.height + 20;
                 this.speedModifier = 1.0;
-                this.hitbox = { offsetX: 35, offsetY: 35 , width: 75, height: 45 };
+                this.hitbox = { offsetX: 35, offsetY: 50 , width: 75, height: 45 };
             }
             draw() {
                  if (this.image.complete && this.image.naturalWidth > 0) {
@@ -913,7 +909,7 @@
                 if (gameSpeed > 0) gameSpeed -= 800 * deltaTime; // Faster stop
                 else gameSpeed = 0;
                 effectsArray.forEach(effect => { if(effect instanceof RunCloud) effect.startFading() });
-                if (gameOver && gameOverFade < 1) gameOverFade += deltaTime; // Fade in game over text
+                if (gameOver && gameOverFade < 1) gameOverFade += 2 * deltaTime; // Faster fade in
             } else {
                 gameSpeed += speedIncreaseRate * 60 * deltaTime;
             }
@@ -1139,6 +1135,9 @@
                 }
                 
                 // Draw Score with mixed fonts
+                ctx.save();
+                if (gameStarted) uiFadeInTimer = Math.min(1, uiFadeInTimer + deltaTime);
+                ctx.globalAlpha = uiFadeInTimer;
                 ctx.textAlign = 'right';
                 const scoreNumberText = score.toString();
                 
@@ -1180,6 +1179,7 @@
                     ctx.font = `bold ${teleportFontSize}px "Segoe UI"`;
                     ctx.fillText(teleportCharges, 65 + x_width, 45);
                 }
+                ctx.restore();
                 ctx.textAlign = 'center';
 
                 if (gameOver) {
@@ -1187,6 +1187,7 @@
                     ctx.font = '70px Amanojaku';
                     ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
                     if (canRestart) {
+                        ctx.fillStyle = `rgba(0, 0, 0, ${1 * gameOverFade})`;
                         ctx.font = 'bold 20px "Segoe UI"';
                         ctx.fillText('press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
                         drawRestartButton();
@@ -1296,7 +1297,6 @@
             sounds.start.play();
             sounds.roll.play();
             sounds.track.play();
-            sounds.gateClose.play();
         }
 
         function mainLoop(currentTime) {
