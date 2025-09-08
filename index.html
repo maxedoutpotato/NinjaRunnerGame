@@ -482,7 +482,6 @@
             audioUnlocked = true;
             menuState = 'intro'; // Start the menu animation after audio is unlocked
             sounds.intro.play();
-            sounds.gateClose.play();
         }
 
         // --- All Classes (Full logic restored) ---
@@ -1287,8 +1286,6 @@
             sounds.start.play();
             sounds.roll.play();
             sounds.track.play();
-            sounds.gateClose.play();
-            effectsArray.push(new RunCloud());
         }
 
         function mainLoop(currentTime) {
@@ -1327,7 +1324,7 @@
             
             requestAnimationFrame(mainLoop);
         }
-
+        
         function drawRotateCanvas() {
             if (images.rotate && images.rotate.complete) {
                 const stateData = animationStates.rotate;
