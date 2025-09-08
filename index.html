@@ -186,7 +186,7 @@
             velocityY: 0, isJumping: false, isCrouching: false, isTeleporting: false,
             frame: 0, frameTimer: 0, state: 'run',
             hitbox: { offsetX: 20, offsetY: 18, width: 65, height: 60 },
-            crouchHitbox: { offsetX: 10, offsetY: 40, width: 73, height: 40 }
+            crouchHitbox: { offsetX: 10, offsetY: 40, width: 70, height: 30 }
         };
         
         // --- Restart Button State ---
@@ -636,7 +636,7 @@
                 this.spriteWidth = 50; this.spriteHeight = 50;
                 this.width = 70; this.height = 70;
                 this.y = SHURIKEN_FLYING_HEIGHTS[Math.floor(Math.random() * SHURIKEN_FLYING_HEIGHTS.length)];
-                this.speedModifier = 1.1; this.hitbox = { offsetX: 10, offsetY: 10, width: 45, height: 45 };
+                this.speedModifier = 1.1; this.hitbox = { offsetX: 10, offsetY: 15, width: 45, height: 40 };
             }
             update(deltaTime) {
                 super.update(deltaTime);
@@ -909,6 +909,7 @@
                 if (gameSpeed > 0) gameSpeed -= 800 * deltaTime; // Faster stop
                 else gameSpeed = 0;
                 effectsArray.forEach(effect => { if(effect instanceof RunCloud) effect.startFading() });
+                if (gameOver && gameOverFade < 1) gameOverFade += deltaTime; // Fade in game over text
             } else {
                 gameSpeed += speedIncreaseRate * 60 * deltaTime;
             }
@@ -1004,6 +1005,7 @@
             }
 
             gameOver = false; gameWon = false; gameSpeed = 300; score = 0;
+            gameOverFade = 0;
             obstaclesArray = []; sceneryArray = []; effectsArray = []; floatingScores = [];
             scoreMilestone = 1; teleportCharges = 0; inversionAmount = 0; inversionTarget = 0;
             scoreBounceTimer = 0; teleportBounceTimer = 0;
@@ -1177,13 +1179,12 @@
                 ctx.textAlign = 'center';
 
                 if (gameOver) {
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * gameOverFade})`;
                     ctx.font = '70px Amanojaku';
                     ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
                     if (canRestart) {
-                        const restartText = isMobile ? 'TAP to restart' : 'press SPACE to restart';
                         ctx.font = 'bold 20px "Segoe UI"';
-                        ctx.fillText(restartText, canvas.width / 2, canvas.height / 2 + 20);
+                        ctx.fillText('press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
                         drawRestartButton();
                     }
                 }
@@ -1291,6 +1292,7 @@
             sounds.start.play();
             sounds.roll.play();
             sounds.track.play();
+            sounds.gateClose.play();
         }
 
         function mainLoop(currentTime) {
