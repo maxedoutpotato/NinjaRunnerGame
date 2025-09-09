@@ -12,6 +12,29 @@
     <meta property="og:image" content="https://maxedoutpotato.github.io/NinjaRunnerGame/Assets/Preview/preview.png" />
     <meta property="og:description" content="A fast-paced 2D endless runner. Jump and crouch to dodge obstacles and collect bonuses in this challenging ninja adventure!" />
 
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, query, orderBy, limit, addDoc, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        
+        // Expose Firebase functions to the global scope so our script can use them.
+        window.firebase = {
+            initializeApp,
+            getAuth,
+            signInAnonymously,
+            getFirestore,
+            collection,
+            onSnapshot,
+            query,
+            orderBy,
+            limit,
+            addDoc,
+            doc,
+            deleteDoc
+        };
+    </script>
+
 
     <style>
         /* Define the custom font */
@@ -93,7 +116,7 @@
         const PLAYER_SPRITE_HEIGHT = 100;
         const PLAYER_DRAW_WIDTH = 100;
         const PLAYER_DRAW_HEIGHT = 100;
-        const DEBUG_MODE = false; // Set to true to see hitboxes
+        const DEBUG_MODE = true; // Set to true to see hitboxes
         
         // --- Physics vs Visuals ---
         const GROUND_HEIGHT_PHYSICS = 68;
@@ -170,6 +193,12 @@
         let isHoldingTouch = false;
         let audioUnlocked = false;
         let wantsToCrouch = false;
+        let isMuted = false;
+        let isScoreboardVisible = false;
+
+        // --- Firebase State ---
+        let db, auth;
+        let highScores = [];
 
         // --- Bonus Spawn Tracking ---
         let bonusSpawns = {
@@ -190,10 +219,21 @@
             crouchHitbox: { offsetX: 10, offsetY: 50, width: 70, height: 30 }
         };
         
-        // --- Restart Button State ---
+        // --- UI Button States ---
         let restartButton = {
             x: canvas.width - 130, y: canvas.height - 130, width: 120, height: 120,
-            frame: 0, frameTimer: 0, isHovered: false, isPressed: false, touchStartX: 0
+            frame: 0, frameTimer: 0, isHovered: false, isPressed: false
+        };
+        let scoreboardButton = {
+            x: canvas.width - 130, y: canvas.height, // Start off-screen
+            targetY: canvas.height - 130,
+            width: 120, height: 120,
+            frame: 0, frameTimer: 0, isHovered: false, isPressed: false, isAnimating: false, animationDirection: 1
+        };
+        let volumeButton = {
+            x: canvas.width / 2 - 50, y: canvas.height - 60, width: 100, height: 100,
+            frame: 5, frameTimer: 0, isHovered: false, scale: 1, targetScale: 1,
+            opacity: 0.4, targetOpacity: 0.4
         };
 
         // --- Animation Data ---
@@ -212,7 +252,9 @@
             button: { frames: 10, columns: 4, frameDuration: 0.05, spriteWidth: 80, spriteHeight: 80 },
             rotate: { frames: 28, columns: 7, frameDuration: 0.05, spriteWidth: 250, spriteHeight: 500 },
             tap: { frames: 28, columns: 4, frameDuration: 0.08, spriteWidth: 500, spriteHeight: 250 },
-            space: { frames: 28, columns: 4, frameDuration: 0.08, spriteWidth: 500, spriteHeight: 250 }
+            space: { frames: 28, columns: 4, frameDuration: 0.08, spriteWidth: 500, spriteHeight: 250 },
+            scroll: { frames: 14, columns: 4, frameDuration: 0.05, spriteWidth: 120, spriteHeight: 120 },
+            volume: { frames: 6, columns: 3, frameDuration: 0.05, spriteWidth: 100, spriteHeight: 100 }
         };
 
         // --- Asset Loading ---
@@ -244,7 +286,9 @@
             lantern: 'Assets/Obstacles/Lantern.png',
             rock: 'Assets/Obstacles/Rock.png',
             apple: 'Assets/Obstacles/Apple.png',
-            carrot: 'Assets/Obstacles/Carrot.png'
+            carrot: 'Assets/Obstacles/Carrot.png',
+            scroll: 'Assets/Menu/Scroll.png',
+            volume: 'Assets/Menu/Volume.png'
         };
         const soundSources = {
             intro: 'Audio/Intro.mp3',
@@ -269,7 +313,6 @@
                 sounds[key] = new Audio();
                 sounds[key].src = GITHUB_REPO_URL + soundSources[key];
                 if (key === 'track' || key === 'intro' || key === 'gecko') sounds[key].loop = true;
-                // 'canplaythrough' is more reliable for knowing an asset is ready.
                 sounds[key].addEventListener('canplaythrough', assetLoaded, { once: true });
                 sounds[key].onerror = () => console.error(`Failed to load sound: ${sounds[key].src}`);
             }
@@ -367,22 +410,58 @@
         }
         
         canvas.addEventListener('mousemove', (evt) => {
+            const mousePos = getScaledCoordinates(evt);
+            
+            // Volume button hover
+            const volBtn = volumeButton;
+            if (mousePos.x >= volBtn.x && mousePos.x <= volBtn.x + volBtn.width &&
+                mousePos.y >= volBtn.y && mousePos.y <= volBtn.y + volBtn.height) {
+                if (!volBtn.isHovered) {
+                    volBtn.isHovered = true;
+                    volBtn.targetScale = 1.1;
+                    volBtn.targetOpacity = 1.0;
+                }
+            } else {
+                if (volBtn.isHovered) {
+                    volBtn.isHovered = false;
+                    volBtn.targetScale = 1.0;
+                    volBtn.targetOpacity = 0.4;
+                }
+            }
+            
+            // Scoreboard button hover
+            const scoreBtn = scoreboardButton;
+             if (menuState === 'loop' && mousePos.x >= scoreBtn.x && mousePos.x <= scoreBtn.x + scoreBtn.width &&
+                mousePos.y >= scoreBtn.y && mousePos.y <= scoreBtn.y + scoreBtn.height) {
+                 if (!scoreBtn.isHovered) {
+                    scoreBtn.isHovered = true;
+                    scoreBtn.isAnimating = true;
+                    scoreBtn.animationDirection = 1;
+                 }
+             } else {
+                 if (scoreBtn.isHovered) {
+                    scoreBtn.isHovered = false;
+                    scoreBtn.isAnimating = true;
+                    scoreBtn.animationDirection = -1;
+                 }
+             }
+
+            // Restart button hover
             if (!canRestart) {
                 canvas.style.cursor = 'default';
                 return;
             };
-            const mousePos = getScaledCoordinates(evt);
-            const isHovering = (mousePos.x >= restartButton.x && mousePos.x <= restartButton.x + restartButton.width &&
+            const isHoveringRestart = (mousePos.x >= restartButton.x && mousePos.x <= restartButton.x + restartButton.width &&
                 mousePos.y >= restartButton.y && mousePos.y <= restartButton.y + restartButton.height);
 
-            if (isHovering && !restartButton.isHovered) {
+            if (isHoveringRestart && !restartButton.isHovered) {
                 restartButton.isHovered = true;
                 canvas.style.cursor = 'pointer';
                 if(sounds.gecko) {
                     sounds.gecko.currentTime = 0;
                     sounds.gecko.play();
                 }
-            } else if (!isHovering && restartButton.isHovered) {
+            } else if (!isHoveringRestart && restartButton.isHovered) {
                 restartButton.isHovered = false;
                 canvas.style.cursor = 'default';
                  if(sounds.gecko) {
@@ -390,13 +469,30 @@
                 }
             }
         });
-        canvas.addEventListener('mousedown', (evt) => {
-             if (restartButton.isHovered && canRestart) {
-                 restartButton.isPressed = true;
+
+        function handleCanvasClick(pos) {
+            // Check Volume button click
+            const volBtn = volumeButton;
+            if (pos.x >= volBtn.x && pos.x <= volBtn.x + volBtn.width &&
+                pos.y >= volBtn.y && pos.y <= volBtn.y + volBtn.height) {
+                toggleMute();
+                return true;
             }
-        });
-         canvas.addEventListener('mouseup', (evt) => {
-             if (restartButton.isPressed) {
+
+            // Check Scoreboard button click
+            const scoreBtn = scoreboardButton;
+             if (menuState === 'loop' && pos.x >= scoreBtn.x && pos.x <= scoreBtn.x + scoreBtn.width &&
+                pos.y >= scoreBtn.y && pos.y <= scoreBtn.y + scoreBtn.height) {
+                isScoreboardVisible = !isScoreboardVisible;
+                if(isMobile) {
+                    scoreBtn.isAnimating = true;
+                    scoreBtn.animationDirection = 1;
+                }
+                return true;
+            }
+
+            // Check restart button click
+            if (restartButton.isPressed || (restartButton.isHovered && canRestart)) {
                  restartButton.isPressed = false;
                  isResetting = true;
                  menuState = 'intro';
@@ -405,21 +501,38 @@
                  canRestart = false;
                  sounds.gateClose.play();
                  if(sounds.gecko) sounds.gecko.pause();
+                 return true;
             }
+            return false;
+        }
+
+        canvas.addEventListener('mousedown', (evt) => {
+            if (restartButton.isHovered && canRestart) {
+                 restartButton.isPressed = true;
+            }
+             if (handleCanvasClick(getScaledCoordinates(evt))) return;
+        });
+
+         canvas.addEventListener('mouseup', (evt) => {
+             if (restartButton.isPressed) {
+                handleCanvasClick(getScaledCoordinates(evt));
+             }
         });
 
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
             if (isRestarting || isResetting) return;
+
+            const touchPos = getScaledCoordinates(e);
+
+            if (handleCanvasClick(touchPos)) return;
             
             if (menuState === 'pre-menu') {
                 unlockAudio();
                 return;
             }
 
-            const touchPos = getScaledCoordinates(e);
             const buttonPadding = 20; // Extra pixels for easier tapping
-
             if ((gameOver || gameWon) && canRestart) {
                  if (touchPos.x >= restartButton.x - buttonPadding && 
                      touchPos.x <= restartButton.x + restartButton.width + buttonPadding &&
@@ -434,7 +547,7 @@
             }
 
             if (!gameStarted) {
-                if (menuState === 'loop') {
+                if (menuState === 'loop' && !isScoreboardVisible) {
                     menuState = 'outro';
                     menuFrame = 0;
                     menuFrameTimer = 0;
@@ -481,7 +594,6 @@
             if (audioContext.state === 'suspended') {
                 audioContext.resume();
             }
-            // A tiny silent sound is played on user interaction to unlock audio playback.
             for (const key in sounds) {
                 sounds[key].play().then(() => {
                     sounds[key].pause();
@@ -494,7 +606,14 @@
                 menuState = 'intro'; 
                 sounds.intro.play();
                 sounds.gateClose.play();
-            }, 50); // A small delay to ensure context is ready
+            }, 50);
+        }
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            for (const key in sounds) {
+                sounds[key].muted = isMuted;
+            }
         }
 
         // --- All Classes (Full logic restored) ---
@@ -665,7 +784,13 @@
                     const sourceX = frameX * this.spriteWidth;
                     const sourceY = frameY * this.spriteHeight;
                     ctx.drawImage(this.image, sourceX, sourceY, this.spriteWidth, this.spriteHeight, this.x, this.y, this.width, this.height);
-                    if (DEBUG_MODE) { ctx.strokeRect(this.x + this.hitbox.offsetX, this.y + this.hitbox.offsetY, this.hitbox.width, this.hitbox.height); }
+                    if (DEBUG_MODE) {
+                        ctx.save();
+                        ctx.strokeStyle = 'red';
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(this.x + this.hitbox.offsetX, this.y + this.hitbox.offsetY, this.hitbox.width, this.hitbox.height);
+                        ctx.restore();
+                    }
                 }
             }
         }
@@ -681,7 +806,13 @@
              draw() {
                 if (this.image.complete && this.image.naturalWidth > 0) {
                     ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
-                    if (DEBUG_MODE) { ctx.strokeRect(this.x + this.hitbox.offsetX, this.y + this.hitbox.offsetY, this.hitbox.width, this.hitbox.height); }
+                    if (DEBUG_MODE) {
+                        ctx.save();
+                        ctx.strokeStyle = 'red';
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(this.x + this.hitbox.offsetX, this.y + this.hitbox.offsetY, this.hitbox.width, this.hitbox.height);
+                        ctx.restore();
+                    }
                 }
              }
         }
@@ -697,7 +828,13 @@
             draw() {
                  if (this.image.complete && this.image.naturalWidth > 0) {
                     ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
-                    if (DEBUG_MODE) { ctx.strokeRect(this.x + this.hitbox.offsetX, this.y + this.hitbox.offsetY, this.hitbox.width, this.hitbox.height); }
+                    if (DEBUG_MODE) {
+                        ctx.save();
+                        ctx.strokeStyle = 'red';
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(this.x + this.hitbox.offsetX, this.y + this.hitbox.offsetY, this.hitbox.width, this.hitbox.height);
+                        ctx.restore();
+                    }
                 }
             }
         }
@@ -747,6 +884,7 @@
             }
         }
 
+        // --- Game Logic Handlers ---
         function handleScenery(deltaTime) {
             sceneryArray.forEach(item => item.update(deltaTime));
             sceneryArray = sceneryArray.filter(item => item.x > -item.width);
@@ -797,7 +935,7 @@
             score += points;
             if (Math.floor(score / 1000) > Math.floor(oldScore / 1000)) {
                 sounds.kabuki.play();
-                scoreBounceTimer = 0.5; // Trigger the bounce effect for 0.5 seconds
+                scoreBounceTimer = 0.5;
             }
             if (score >= scoreMilestone * 3000) {
                 resetGameForNextLevel();
@@ -822,7 +960,7 @@
                 if (px < ox + ow && px + pw > ox && py < oy + oh && py + ph > oy) {
                     if (obstacle instanceof TeleportGold) {
                         teleportCharges++;
-                        teleportBounceTimer = 1; // Trigger bounce effect for 1 second
+                        teleportBounceTimer = 1;
                         sounds.secret.currentTime = 0;
                         sounds.secret.play();
                         obstaclesArray.splice(i, 1);
@@ -848,6 +986,7 @@
                         sounds.fail.play();
                         sounds.track.pause();
                         sounds.track.currentTime = 0;
+                        saveScore();
                         setTimeout(() => { canRestart = true; }, 2000);
                     }
                 }
@@ -873,6 +1012,7 @@
                 gameWon = true;
                 inversionTarget = 1;
                 sounds.track.pause();
+                saveScore();
                 setTimeout(() => { canRestart = true; }, 2000);
             } else if (score >= 15000 && score < 19000) {
                  inversionTarget = 1;
@@ -905,6 +1045,7 @@
             obstaclesArray = []; sceneryArray = []; effectsArray = []; floatingScores = [];
             scoreMilestone = 1; teleportCharges = 0; inversionAmount = 0; inversionTarget = 0;
             scoreBounceTimer = 0; teleportBounceTimer = 0;
+            isScoreboardVisible = false;
             bonusSpawns = {
                 teleportGold: { '3000': 0, '9000': 0, '15000': 0 },
                 bonusPoints: { '3000': 0, '6000': 0, '9000': 0, '12000': 0, '15000': 0, '19000': 0, '21000': 0 }
@@ -913,7 +1054,7 @@
             player.isJumping = false; player.isCrouching = false; player.isTeleporting = false; player.velocityY = 0;
             
             if (fromSpacebar) {
-                startGame(); // startGame now handles all setup
+                startGame();
             } else {
                 gameStarted = false;
             }
@@ -939,7 +1080,7 @@
                         menuFrame = 0;
                     }
                 } else if (menuState === 'loop' && menuFrame >= stateData.frames) {
-                    menuFrame = 0; // Loop the animation
+                    menuFrame = 0;
                 } else if (menuState === 'outro' && menuFrame >= stateData.frames) {
                     menuState = 'inactive';
                 }
@@ -952,20 +1093,11 @@
             sounds.roll.play();
             sounds.track.currentTime = 0;
             sounds.track.play();
-            // This was missing before, causing the run cloud not to appear at the start.
             effectsArray.push(new RunCloud());
         }
         
         // --- Main Update and Draw Functions ---
-
-        /**
-         * The main UPDATE function. It handles all game logic, state changes, and physics.
-         * It is called on every frame by mainLoop.
-         * @param {number} deltaTime The time in seconds since the last frame.
-         */
         function update(deltaTime) {
-            // --- Universal Updates (run regardless of game state) ---
-            // Update the 'rotate device' animation
             rotateFrameTimer += deltaTime;
             const rotateData = animationStates.rotate;
             if (rotateFrameTimer >= rotateData.frameDuration) {
@@ -973,8 +1105,43 @@
                 rotateFrameTimer = 0;
             }
 
-            // --- State-Specific Updates ---
-            // Handle the fade-to-white restart transition
+            // --- UI Button updates
+            // Volume Button
+            const volBtn = volumeButton;
+            volBtn.scale += (volBtn.targetScale - volBtn.scale) * 0.2;
+            volBtn.opacity += (volBtn.targetOpacity - volBtn.opacity) * 0.2;
+            volBtn.frameTimer += deltaTime;
+            const volAnimData = animationStates.volume;
+            if (volBtn.frameTimer >= volAnimData.frameDuration) {
+                if (isMuted && volBtn.frame > 0) {
+                    volBtn.frame--;
+                    volBtn.frameTimer = 0;
+                } else if (!isMuted && volBtn.frame < volAnimData.frames - 1) {
+                    volBtn.frame++;
+                    volBtn.frameTimer = 0;
+                }
+            }
+            // Scoreboard Button
+            const scoreBtn = scoreboardButton;
+            if (menuState === 'intro' || menuState === 'loop') {
+                scoreBtn.y += (scoreBtn.targetY - scoreBtn.y) * 0.1;
+            } else {
+                 scoreBtn.y += (canvas.height + 20 - scoreBtn.y) * 0.1;
+            }
+            if (scoreBtn.isAnimating) {
+                scoreBtn.frameTimer += deltaTime;
+                const scoreAnimData = animationStates.scroll;
+                 if (scoreBtn.frameTimer >= scoreAnimData.frameDuration) {
+                     scoreBtn.frame += scoreBtn.animationDirection;
+                     scoreBtn.frameTimer = 0;
+                     if (scoreBtn.frame >= scoreAnimData.frames -1 || scoreBtn.frame <= 0) {
+                         scoreBtn.frame = Math.max(0, Math.min(scoreAnimData.frames - 1, scoreBtn.frame));
+                         scoreBtn.isAnimating = false;
+                     }
+                 }
+            }
+
+
             if (isRestarting) {
                 restartFadeAmount += 2 * fadeDirection * deltaTime;
                 if (restartFadeAmount >= 1 && fadeDirection === 1) {
@@ -985,14 +1152,13 @@
                     isRestarting = false;
                     fadeDirection = 1;
                 }
-                return; // Don't run any other logic during this transition
+                return;
             }
 
-            // Handle menu states (pre-menu, intro, loop, outro)
             if (!gameStarted || isResetting || menuState === 'outro') {
                 if (isResetting) {
                     updateMenu(deltaTime);
-                    return; // Don't run game logic while resetting to menu
+                    return;
                 }
                 if (menuState === 'pre-menu') {
                     preMenuFrameTimer += deltaTime;
@@ -1004,18 +1170,15 @@
                 } else {
                     updateMenu(deltaTime);
                 }
-                // If the game hasn't truly started (i.e., we're still in a menu), stop here.
                 if (!gameStarted || menuState !== 'inactive') {
                     return;
                 }
             }
             
-            // --- Active Gameplay Logic (only runs when the game is truly active) ---
             handleScenery(deltaTime);
             handleObstacles(deltaTime);
             checkCollisionsAndScore();
             
-            // Update floating score positions and lifetimes
             for (let i = floatingScores.length - 1; i >= 0; i--) {
                 floatingScores[i].update(deltaTime);
                 if (floatingScores[i].opacity <= 0) {
@@ -1110,50 +1273,48 @@
             effectsArray = effectsArray.filter(effect => !effect.markedForDeletion);
         }
         
-        /**
-         * The main DRAW function. It handles all rendering to the canvas.
-         * It is called on every frame by mainLoop, after update().
-         */
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             if (menuState === 'pre-menu') {
                 drawPreMenu();
-                return; // Nothing else to draw
+                drawVolumeButton();
+                return;
             }
             
             if (isResetting) {
                 drawGameOverStateForReset();
                 drawMenu();
+                drawVolumeButton();
+                drawScoreboardButton();
+                if(isScoreboardVisible) drawScoreboard();
                 return;
             }
 
             if (menuState === 'intro' || menuState === 'loop') {
                 drawMenu();
+                if (isScoreboardVisible) {
+                    drawScoreboard();
+                }
             } else {
-                // This block draws the main game world.
-                // It runs during 'outro', 'inactive', and game over states.
                 drawGameWorld();
-
-                // If the gate is opening, draw it on top of the game world.
                 if (menuState === 'outro') {
                     drawMenu();
                 }
-
-                // Draw UI elements like score, which fade in.
                 drawUI();
-
-                // Draw game over or win screens if applicable.
                 drawEndScreens();
             }
+            
+            drawVolumeButton();
+            drawScoreboardButton();
 
-            // Draw the fade-to-white overlay for instant restarts.
             if (isRestarting) {
                 ctx.fillStyle = `rgba(255, 255, 255, ${restartFadeAmount})`;
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
             }
         }
 
+        // --- Drawing Sub-functions ---
         function drawGameWorld() {
              ctx.save();
              ctx.filter = `invert(${inversionAmount * 100}%)`;
@@ -1192,10 +1353,12 @@
                      const sourceY = frameY * PLAYER_SPRITE_HEIGHT;
                      ctx.drawImage(images[player.state], sourceX, sourceY, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT, player.x, player.y, player.width, player.height);
                      if (DEBUG_MODE) {
-                         ctx.strokeStyle = 'black';
-                         ctx.lineWidth = 2;
+                         ctx.save();
+                         ctx.strokeStyle = 'blue';
+                         ctx.lineWidth = 1;
                          let currentHitbox = player.isCrouching ? player.crouchHitbox : player.hitbox;
                          ctx.strokeRect(player.x + currentHitbox.offsetX, player.y + currentHitbox.offsetY, currentHitbox.width, currentHitbox.height);
+                         ctx.restore();
                      }
                  }
              }
@@ -1214,14 +1377,14 @@
 
         function drawUI() {
             ctx.save();
-            if (gameStarted) uiFadeInTimer = Math.min(1, uiFadeInTimer + (1/60)); // Simple fade-in
+            if (gameStarted) uiFadeInTimer = Math.min(1, uiFadeInTimer + (1/60));
             ctx.globalAlpha = uiFadeInTimer;
             ctx.textAlign = 'right';
             const scoreNumberText = score.toString();
             
             let scoreFontSize = 30;
             if (scoreBounceTimer > 0) {
-                const bounceScale = 1 + Math.sin(scoreBounceTimer * (1/0.5) * Math.PI) * 0.5; // Pulse effect
+                const bounceScale = 1 + Math.sin(scoreBounceTimer * (1/0.5) * Math.PI) * 0.5;
                 scoreFontSize *= bounceScale;
                 ctx.fillStyle = 'red';
             } else {
@@ -1232,11 +1395,10 @@
             const scoreNumberWidth = ctx.measureText(scoreNumberText).width;
             ctx.fillText(scoreNumberText, canvas.width - 20, 40);
             
-            ctx.fillStyle = 'black'; // Reset color for the label
+            ctx.fillStyle = 'black';
             ctx.font = 'bold 24px "Segoe UI"';
             ctx.fillText('SCORE: ', canvas.width - 20 - scoreNumberWidth, 40);
 
-            // Draw Teleport Counter
             ctx.textAlign = 'left';
             if (teleportCharges > 0 && images.teleportLogo.complete) {
                 ctx.drawImage(images.teleportLogo, 20, 15, 40, 40);
@@ -1385,11 +1547,136 @@
                 rotateCtx.drawImage(images.rotate, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, 0, 0, rotateCanvas.width, rotateCanvas.height);
             }
         }
+
+        function drawVolumeButton() {
+            if (images.volume && images.volume.complete) {
+                ctx.save();
+                ctx.globalAlpha = volumeButton.opacity;
+                const stateData = animationStates.volume;
+                const columns = stateData.columns;
+                const frameX = volumeButton.frame % columns;
+                const frameY = Math.floor(volumeButton.frame / columns);
+                const sourceX = frameX * stateData.spriteWidth;
+                const sourceY = frameY * stateData.spriteHeight;
+
+                const w = volumeButton.width * volumeButton.scale;
+                const h = volumeButton.height * volumeButton.scale;
+                const x = volumeButton.x - (w - volumeButton.width) / 2;
+                const y = volumeButton.y - (h - volumeButton.height) / 2;
+
+                ctx.drawImage(images.volume, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, x, y, w, h);
+                ctx.restore();
+            }
+        }
+
+        function drawScoreboardButton() {
+             if (images.scroll && images.scroll.complete) {
+                const btn = scoreboardButton;
+                const stateData = animationStates.scroll;
+                const columns = stateData.columns;
+                const frameX = btn.frame % columns;
+                const frameY = Math.floor(btn.frame / columns);
+                const sourceX = frameX * stateData.spriteWidth;
+                const sourceY = frameY * stateData.spriteHeight;
+                ctx.drawImage(images.scroll, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, btn.x, btn.y, btn.width, btn.height);
+            }
+        }
+
+        function drawScoreboard() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            ctx.fillRect(150, 50, canvas.width - 300, canvas.height - 100);
+            ctx.strokeStyle = '#8B4513';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(150, 50, canvas.width - 300, canvas.height - 100);
+            
+            ctx.fillStyle = 'white';
+            ctx.font = '30px Amanojaku';
+            ctx.textAlign = 'center';
+            ctx.fillText('High Scores', canvas.width / 2, 90);
+
+            if (highScores.length === 0) {
+                ctx.font = '20px "Segoe UI"';
+                ctx.fillText('No scores yet!', canvas.width / 2, canvas.height / 2);
+            } else {
+                 highScores.forEach((score, index) => {
+                    const yPos = 130 + index * 25;
+                    ctx.font = 'bold 20px "Segoe UI"';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(`${index + 1}. ${score.name}`, 180, yPos);
+                    
+                    ctx.font = '20px Amanojaku';
+                    ctx.textAlign = 'right';
+                    ctx.fillText(score.score, canvas.width - 180, yPos);
+                });
+            }
+        }
+
+        // --- Firebase Functions ---
+        async function initializeFirebase() {
+            // This is a placeholder for your actual Firebase config
+            const firebaseConfig = {
+                apiKey: "YOUR_API_KEY",
+                authDomain: "YOUR_AUTH_DOMAIN",
+                projectId: "ninjarunnergame-b585e",
+                storageBucket: "YOUR_STORAGE_BUCKET",
+                messagingSenderId: "YOUR_SENDER_ID",
+                appId: "YOUR_APP_ID"
+            };
+
+            try {
+                const app = window.firebase.initializeApp(firebaseConfig);
+                auth = window.firebase.getAuth(app);
+                db = window.firebase.getFirestore(app);
+
+                await window.firebase.signInAnonymously(auth);
+                fetchHighScores();
+
+            } catch(e) {
+                console.error("Firebase initialization failed:", e);
+            }
+        }
         
-        /**
-         * The absolute main loop, powered by requestAnimationFrame.
-         * This is the engine of the game.
-         */
+        function fetchHighScores() {
+            if (!db) return;
+            const scoresCollection = window.firebase.collection(db, 'scores');
+            const q = window.firebase.query(scoresCollection, window.firebase.orderBy('score', 'desc'), window.firebase.limit(10));
+            
+            window.firebase.onSnapshot(q, (snapshot) => {
+                highScores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            }, (error) => {
+                console.error("Error fetching high scores:", error);
+            });
+        }
+        
+        async function saveScore() {
+            if (!db || (highScores.length >= 10 && score <= highScores[highScores.length - 1].score)) {
+                return; // Don't save if score is not a high score
+            }
+
+            const name = prompt("High Score! Enter your name (3-10 chars):");
+            if (!name || name.length < 3 || name.length > 10) {
+                return; // Invalid name
+            }
+
+            try {
+                const scoresCollection = window.firebase.collection(db, 'scores');
+                await window.firebase.addDoc(scoresCollection, {
+                    name: name.trim(),
+                    score: score,
+                    timestamp: new Date()
+                });
+                // If we now have more than 10 scores, delete the lowest one.
+                if (highScores.length >= 10) {
+                    const lowestScoreDocId = highScores[highScores.length-1].id;
+                    await window.firebase.deleteDoc(window.firebase.doc(db, 'scores', lowestScoreDocId));
+                }
+
+            } catch (e) {
+                console.error("Error saving score:", e);
+            }
+        }
+
+        // --- Game Initialization ---
         function mainLoop(currentTime) {
             if (!lastTime) lastTime = currentTime;
             const deltaTime = (currentTime - lastTime) / 1000;
@@ -1409,10 +1696,11 @@
                 ctx.font = '20px "Segoe UI"';
                 ctx.textAlign = 'center';
                 ctx.fillText(`Loading... ${Math.round((assetsLoaded / totalAssets) * 100)}%`, canvas.width / 2, canvas.height / 2);
-                requestAnimationFrame(initialDraw); // Use rAF for a smooth loading bar
+                requestAnimationFrame(initialDraw);
                 return;
             }
-            // Once all assets are loaded, start the main game loop.
+            
+            initializeFirebase();
             lastTime = performance.now();
             mainLoop(lastTime);
         }
@@ -1423,3 +1711,4 @@
     </script>
 </body>
 </html>
+
