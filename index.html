@@ -426,8 +426,27 @@
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
-            const clientX = evt.clientX || (evt.touches && evt.touches[0] ? evt.touches[0].clientX : 0);
-            const clientY = evt.clientY || (evt.touches && evt.touches[0] ? evt.touches[0].clientY : 0);
+            
+            let clientX = 0;
+            let clientY = 0;
+            
+            // Handle different event types properly
+            if (evt.type === 'touchend' || evt.type === 'touchcancel') {
+                // For touchend/touchcancel, use changedTouches
+                if (evt.changedTouches && evt.changedTouches[0]) {
+                    clientX = evt.changedTouches[0].clientX;
+                    clientY = evt.changedTouches[0].clientY;
+                }
+            } else if (evt.touches && evt.touches[0]) {
+                // For touchstart/touchmove, use touches
+                clientX = evt.touches[0].clientX;
+                clientY = evt.touches[0].clientY;
+            } else {
+                // For mouse events
+                clientX = evt.clientX || 0;
+                clientY = evt.clientY || 0;
+            }
+            
             return {
                 x: (clientX - rect.left) * scaleX,
                 y: (clientY - rect.top) * scaleY
@@ -1873,4 +1892,3 @@
     </script>
 </body>
 </html>
-
