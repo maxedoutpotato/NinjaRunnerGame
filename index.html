@@ -116,7 +116,7 @@
         const PLAYER_SPRITE_HEIGHT = 100;
         const PLAYER_DRAW_WIDTH = 100;
         const PLAYER_DRAW_HEIGHT = 100;
-        const DEBUG_MODE = true; // Set to true to see hitboxes
+        const DEBUG_MODE = false; // Set to true to see hitboxes
         
         // --- Physics vs Visuals ---
         const GROUND_HEIGHT_PHYSICS = 68;
@@ -234,7 +234,7 @@
             scale: 1, targetScale: 1
         };
         let volumeButton = {
-            x: 0, y: 0, width: 70, height: 70,
+            x: 0, y: 0, width: 60, height: 60,
             frame: 5, frameTimer: 0, isHovered: false, scale: 1, targetScale: 1,
             opacity: 0.4, targetOpacity: 0.4
         };
@@ -429,10 +429,10 @@
         canvas.addEventListener('mousemove', (evt) => {
             const mousePos = getScaledCoordinates(evt);
             
-            // Volume button hover
             const volBtn = volumeButton;
-            if (mousePos.x >= volBtn.x && mousePos.x <= volBtn.x + volBtn.width &&
-                mousePos.y >= volBtn.y && mousePos.y <= volBtn.y + volBtn.height) {
+            const volBtnPadding = 10;
+            if (mousePos.x >= volBtn.x - volBtnPadding && mousePos.x <= volBtn.x + volBtn.width + volBtnPadding &&
+                mousePos.y >= volBtn.y - volBtnPadding && mousePos.y <= volBtn.y + volBtn.height + volBtnPadding) {
                 if (!volBtn.isHovered) {
                     volBtn.isHovered = true;
                     volBtn.targetScale = 1.4;
@@ -446,9 +446,8 @@
                 }
             }
             
-            // Scoreboard button hover
             const scoreBtn = scoreboardButton;
-             if (menuState === 'loop' && !isScoreboardVisible && mousePos.x >= scoreBtn.x && mousePos.x <= scoreBtn.x + scoreBtn.width &&
+            if (menuState === 'loop' && !isScoreboardVisible && mousePos.x >= scoreBtn.x && mousePos.x <= scoreBtn.x + scoreBtn.width &&
                 mousePos.y >= scoreBtn.y && mousePos.y <= scoreBtn.y + scoreBtn.height) {
                  if (!scoreBtn.isHovered) {
                     scoreBtn.isHovered = true;
@@ -463,11 +462,9 @@
                         scoreBtn.isAnimating = true;
                         scoreBtn.animationDirection = -1;
                     }
-                    scoreBtn.targetScale = 1.0;
                  }
              }
 
-            // Restart button hover
             if (!canRestart) {
                 canvas.style.cursor = 'default';
                 return;
@@ -492,10 +489,10 @@
         });
 
         function handleCanvasRelease(pos) {
-            // PRIORITY 1: UI BUTTONS that are always available
             const volBtn = volumeButton;
-            if (pos.x >= volBtn.x && pos.x <= volBtn.x + volBtn.width &&
-                pos.y >= volBtn.y && pos.y <= volBtn.y + volBtn.height) {
+            const volBtnPadding = isMobile ? 20 : 0;
+            if (pos.x >= volBtn.x - volBtnPadding && pos.x <= volBtn.x + volBtn.width + volBtnPadding &&
+                pos.y >= volBtn.y - volBtnPadding && pos.y <= volBtn.y + volBtn.height + volBtnPadding) {
                 toggleMute();
                 if (isMobile) {
                     volBtn.targetScale = 1.4;
@@ -510,19 +507,16 @@
                 return true;
             }
 
-            // PRIORITY 2: CLOSING the scoreboard if it's open
             if (isScoreboardVisible) {
                 isScoreboardVisible = false;
                 scoreboardButton.isAnimating = true;
                 scoreboardButton.animationDirection = -1;
-                scoreboardButton.isHovered = false; // Ensure hover state resets
-                scoreboardButton.targetScale = 1.0;
+                scoreboardButton.isHovered = false;
                 return true;
             }
 
-            // PRIORITY 3: INTERACTIVE BUTTONS based on game state
             const scoreBtn = scoreboardButton;
-            const scoreBtnPadding = isMobile ? 20 : 0; // Larger hitbox for touch
+            const scoreBtnPadding = isMobile ? 30 : 0;
             if (menuState === 'loop' && 
                 pos.x >= scoreBtn.x - scoreBtnPadding && pos.x <= scoreBtn.x + scoreBtn.width + scoreBtnPadding &&
                 pos.y >= scoreBtn.y - scoreBtnPadding && pos.y <= scoreBtn.y + scoreBtn.height + scoreBtnPadding) {
@@ -573,16 +567,19 @@
 
             const touchPos = getScaledCoordinates(e);
             const scoreBtn = scoreboardButton;
-            if (menuState === 'loop' && touchPos.x >= scoreBtn.x && touchPos.x <= scoreBtn.x + scoreBtn.width &&
-                touchPos.y >= scoreBtn.y && touchPos.y <= scoreBtn.y + scoreBtn.height) {
+            const scoreBtnPadding = 30;
+            if (menuState === 'loop' && 
+                touchPos.x >= scoreBtn.x - scoreBtnPadding && touchPos.x <= scoreBtn.x + scoreBtn.width + scoreBtnPadding &&
+                touchPos.y >= scoreBtn.y - scoreBtnPadding && touchPos.y <= scoreBtn.y + scoreBtn.height + scoreBtnPadding) {
                 scoreBtn.isPressed = true;
             }
-            const buttonPadding = 20;
+            
+            const restartBtnPadding = 20;
             if ((gameOver || gameWon) && canRestart &&
-                touchPos.x >= restartButton.x - buttonPadding && 
-                touchPos.x <= restartButton.x + restartButton.width + buttonPadding &&
-                touchPos.y >= restartButton.y - buttonPadding && 
-                touchPos.y <= restartButton.y + restartButton.height + buttonPadding) {
+                touchPos.x >= restartButton.x - restartBtnPadding && 
+                touchPos.x <= restartButton.x + restartButton.width + restartBtnPadding &&
+                touchPos.y >= restartButton.y - restartBtnPadding && 
+                touchPos.y <= restartButton.y + restartButton.height + restartBtnPadding) {
                 restartButton.isPressed = true;
             }
 
@@ -600,12 +597,12 @@
 
         canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
+            isHoldingTouch = false; // Fixes crouch bug on restart
             if (isRestarting || isResetting || isPromptingName) return;
             
             if (handleCanvasRelease(getScaledCoordinates(e))) {
                 restartButton.isPressed = false;
                 scoreboardButton.isPressed = false;
-                isHoldingTouch = false;
                 return;
             }
 
@@ -623,7 +620,7 @@
              scoreboardButton.isPressed = false;
 
             const touchDuration = Date.now() - touchStartTime;
-            if (gameStarted && isHoldingTouch) {
+            if (gameStarted && touchDuration > 0) { // check touchDuration to ensure it's a valid touch
                 if (touchDuration < 250) {
                     handleJump();
                 }
@@ -636,7 +633,7 @@
                 sounds.intro.currentTime = 0;
                 startGame();
             }
-            isHoldingTouch = false;
+            touchStartTime = 0;
         }, { passive: false });
 
         // --- Sound Utility ---
@@ -1175,7 +1172,11 @@
             }
             
             const scoreBtn = scoreboardButton;
+            if (!scoreBtn.isHovered && !isScoreboardVisible) {
+                scoreBtn.targetScale = 1.0;
+            }
             scoreBtn.scale += (scoreBtn.targetScale - scoreBtn.scale) * 0.2;
+
             if (menuState === 'intro' || menuState === 'loop') {
                 scoreBtn.y += (scoreBtn.targetY - scoreBtn.y) * 0.05;
             } else {
@@ -1773,8 +1774,8 @@
             scoreboardButton.x = canvas.width - 130;
             scoreboardButton.targetY = canvas.height - 130;
 
-            volumeButton.x = canvas.width / 2 - 35;
-            volumeButton.y = canvas.height - 85;
+            volumeButton.x = canvas.width / 2 - 30;
+            volumeButton.y = canvas.height - 95;
         }
 
         // --- Game Initialization ---
