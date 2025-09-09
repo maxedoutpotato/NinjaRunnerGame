@@ -8,15 +8,15 @@
     <!-- Open Graph Meta Tags for Link Previews -->
     <meta property="og:title" content="Ninja Runner Game" />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://maxedoutpotato.github.io/NinjaRunnerGame/" />
-    <meta property="og:image" content="https://maxedoutpotato.github.io/NinjaRunnerGame/Assets/Preview/preview.png" />
+    <meta property="og:url" content="[https://maxedoutpotato.github.io/NinjaRunnerGame/](https://maxedoutpotato.github.io/NinjaRunnerGame/)" />
+    <meta property="og:image" content="[https://maxedoutpotato.github.io/NinjaRunnerGame/Assets/Preview/preview.png](https://maxedoutpotato.github.io/NinjaRunnerGame/Assets/Preview/preview.png)" />
     <meta property="og:description" content="A fast-paced 2D endless runner. Jump and crouch to dodge obstacles and collect bonuses in this challenging ninja adventure!" />
 
     <!-- Firebase SDKs -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, query, orderBy, limit, addDoc, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { initializeApp } from "[https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js](https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js)";
+        import { getAuth, signInAnonymously } from "[https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js](https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js)";
+        import { getFirestore, collection, onSnapshot, query, orderBy, limit, addDoc, doc, deleteDoc } from "[https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js](https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js)";
         
         // Expose Firebase functions to the global scope so our script can use them.
         window.firebase = {
@@ -40,7 +40,7 @@
         /* Define the custom font */
         @font-face {
             font-family: 'Amanojaku';
-            src: url('https://maxedoutpotato.github.io/NinjaRunnerGame/Amanojaku%20Demo.otf') format('opentype');
+            src: url('[https://maxedoutpotato.github.io/NinjaRunnerGame/Amanojaku%20Demo.otf](https://maxedoutpotato.github.io/NinjaRunnerGame/Amanojaku%20Demo.otf)') format('opentype');
         }
 
         /* Basic styling to center the game and make it look clean */
@@ -195,6 +195,8 @@
         let wantsToCrouch = false;
         let isMuted = false;
         let isScoreboardVisible = false;
+        let isPromptingName = false;
+        let highScoreName = '';
 
         // --- Firebase State ---
         let db, auth;
@@ -228,10 +230,11 @@
             x: canvas.width - 130, y: canvas.height, // Start off-screen
             targetY: canvas.height - 130,
             width: 120, height: 120,
-            frame: 0, frameTimer: 0, isHovered: false, isPressed: false, isAnimating: false, animationDirection: 1
+            frame: 0, frameTimer: 0, isHovered: false, isPressed: false, isAnimating: false, animationDirection: 1,
+            scale: 1, targetScale: 1
         };
         let volumeButton = {
-            x: canvas.width / 2 - 50, y: canvas.height - 60, width: 100, height: 100,
+            x: canvas.width / 2 - 40, y: canvas.height - 75, width: 80, height: 80,
             frame: 5, frameTimer: 0, isHovered: false, scale: 1, targetScale: 1,
             opacity: 0.4, targetOpacity: 0.4
         };
@@ -258,7 +261,7 @@
         };
 
         // --- Asset Loading ---
-        const GITHUB_REPO_URL = 'https://maxedoutpotato.github.io/NinjaRunnerGame/';
+        const GITHUB_REPO_URL = '[https://maxedoutpotato.github.io/NinjaRunnerGame/](https://maxedoutpotato.github.io/NinjaRunnerGame/)';
         const images = {};
         const sounds = {};
         const imageSources = {
@@ -357,7 +360,21 @@
         }
 
         document.addEventListener('keydown', function(event) {
-            if (isRestarting || isResetting) return;
+            if (isPromptingName) {
+                if (event.key === 'Enter') {
+                    if (highScoreName.length >= 3 && highScoreName.length <= 10) {
+                        submitHighScore(highScoreName);
+                        isPromptingName = false;
+                    }
+                } else if (event.key === 'Backspace') {
+                    highScoreName = highScoreName.slice(0, -1);
+                } else if (highScoreName.length < 10 && event.key.length === 1 && event.key.match(/^[a-zA-Z0-9]*$/)) {
+                    highScoreName += event.key;
+                }
+                return; // Prevent other game input while typing name
+            }
+
+            if (isRestarting || isResetting || isScoreboardVisible) return;
 
             if (event.code === 'Space' || event.code === 'ArrowUp') {
                  if (menuState === 'pre-menu') {
@@ -418,7 +435,7 @@
                 mousePos.y >= volBtn.y && mousePos.y <= volBtn.y + volBtn.height) {
                 if (!volBtn.isHovered) {
                     volBtn.isHovered = true;
-                    volBtn.targetScale = 1.1;
+                    volBtn.targetScale = 1.25;
                     volBtn.targetOpacity = 1.0;
                 }
             } else {
@@ -431,18 +448,22 @@
             
             // Scoreboard button hover
             const scoreBtn = scoreboardButton;
-             if (menuState === 'loop' && mousePos.x >= scoreBtn.x && mousePos.x <= scoreBtn.x + scoreBtn.width &&
+             if (menuState === 'loop' && !isScoreboardVisible && mousePos.x >= scoreBtn.x && mousePos.x <= scoreBtn.x + scoreBtn.width &&
                 mousePos.y >= scoreBtn.y && mousePos.y <= scoreBtn.y + scoreBtn.height) {
                  if (!scoreBtn.isHovered) {
                     scoreBtn.isHovered = true;
                     scoreBtn.isAnimating = true;
                     scoreBtn.animationDirection = 1;
+                    scoreBtn.targetScale = 1.2;
                  }
              } else {
                  if (scoreBtn.isHovered) {
                     scoreBtn.isHovered = false;
-                    scoreBtn.isAnimating = true;
-                    scoreBtn.animationDirection = -1;
+                    if(!isScoreboardVisible) {
+                        scoreBtn.isAnimating = true;
+                        scoreBtn.animationDirection = -1;
+                    }
+                    scoreBtn.targetScale = 1.0;
                  }
              }
 
@@ -470,28 +491,45 @@
             }
         });
 
-        function handleCanvasClick(pos) {
-            // Check Volume button click
+        function handleCanvasRelease(pos) {
+            // PRIORITY 1: UI BUTTONS that are always available
             const volBtn = volumeButton;
             if (pos.x >= volBtn.x && pos.x <= volBtn.x + volBtn.width &&
                 pos.y >= volBtn.y && pos.y <= volBtn.y + volBtn.height) {
                 toggleMute();
-                return true;
-            }
-
-            // Check Scoreboard button click
-            const scoreBtn = scoreboardButton;
-             if (menuState === 'loop' && pos.x >= scoreBtn.x && pos.x <= scoreBtn.x + scoreBtn.width &&
-                pos.y >= scoreBtn.y && pos.y <= scoreBtn.y + scoreBtn.height) {
-                isScoreboardVisible = !isScoreboardVisible;
-                if(isMobile) {
-                    scoreBtn.isAnimating = true;
-                    scoreBtn.animationDirection = 1;
+                if (isMobile) {
+                    volBtn.targetScale = 1.25;
+                    volBtn.targetOpacity = 1.0;
+                    setTimeout(() => {
+                        if (!volBtn.isHovered) {
+                            volBtn.targetScale = 1.0;
+                            volBtn.targetOpacity = 0.4;
+                        }
+                    }, 150);
                 }
                 return true;
             }
 
-            // Check restart button click
+            // PRIORITY 2: CLOSING the scoreboard if it's open
+            if (isScoreboardVisible) {
+                isScoreboardVisible = false;
+                scoreboardButton.isAnimating = true;
+                scoreboardButton.animationDirection = -1;
+                scoreboardButton.targetScale = 1.0;
+                return true;
+            }
+
+            // PRIORITY 3: INTERACTIVE BUTTONS based on game state
+            const scoreBtn = scoreboardButton;
+            if (menuState === 'loop' && pos.x >= scoreBtn.x && pos.x <= scoreBtn.x + scoreBtn.width &&
+                pos.y >= scoreBtn.y && pos.y <= scoreBtn.y + scoreBtn.height) {
+                isScoreboardVisible = true;
+                scoreBtn.isAnimating = true;
+                scoreBtn.animationDirection = 1;
+                scoreBtn.targetScale = 1.2;
+                return true;
+            }
+
             if (restartButton.isPressed || (restartButton.isHovered && canRestart)) {
                  restartButton.isPressed = false;
                  isResetting = true;
@@ -507,82 +545,93 @@
         }
 
         canvas.addEventListener('mousedown', (evt) => {
+            if(isPromptingName) return;
+            const pos = getScaledCoordinates(evt);
+            const scoreBtn = scoreboardButton;
+            if (menuState === 'loop' && pos.x >= scoreBtn.x && pos.x <= scoreBtn.x + scoreBtn.width &&
+                pos.y >= scoreBtn.y && pos.y <= scoreBtn.y + scoreBtn.height) {
+                scoreBtn.isPressed = true;
+            }
             if (restartButton.isHovered && canRestart) {
                  restartButton.isPressed = true;
             }
-             if (handleCanvasClick(getScaledCoordinates(evt))) return;
         });
 
          canvas.addEventListener('mouseup', (evt) => {
-             if (restartButton.isPressed) {
-                handleCanvasClick(getScaledCoordinates(evt));
-             }
+             if(isPromptingName) return;
+             handleCanvasRelease(getScaledCoordinates(evt));
+             restartButton.isPressed = false;
+             scoreboardButton.isPressed = false;
         });
 
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            if (isRestarting || isResetting) return;
+            if (isRestarting || isResetting || isPromptingName) return;
 
             const touchPos = getScaledCoordinates(e);
+            const scoreBtn = scoreboardButton;
+            if (menuState === 'loop' && touchPos.x >= scoreBtn.x && touchPos.x <= scoreBtn.x + scoreBtn.width &&
+                touchPos.y >= scoreBtn.y && touchPos.y <= scoreBtn.y + scoreBtn.height) {
+                scoreBtn.isPressed = true;
+            }
+            const buttonPadding = 20;
+            if ((gameOver || gameWon) && canRestart &&
+                touchPos.x >= restartButton.x - buttonPadding && 
+                touchPos.x <= restartButton.x + restartButton.width + buttonPadding &&
+                touchPos.y >= restartButton.y - buttonPadding && 
+                touchPos.y <= restartButton.y + restartButton.height + buttonPadding) {
+                restartButton.isPressed = true;
+            }
 
-            if (handleCanvasClick(touchPos)) return;
+            if (!gameStarted && !isScoreboardVisible) {
+                 if (menuState !== 'loop') {
+                    touchStartTime = Date.now();
+                    isHoldingTouch = true;
+                 }
+            } else if (gameStarted) {
+                touchStartTime = Date.now();
+                isHoldingTouch = true;
+            }
+
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (isRestarting || isResetting || isPromptingName) return;
             
+            if (handleCanvasRelease(getScaledCoordinates(e))) {
+                restartButton.isPressed = false;
+                scoreboardButton.isPressed = false;
+                isHoldingTouch = false;
+                return;
+            }
+
             if (menuState === 'pre-menu') {
                 unlockAudio();
                 return;
             }
 
-            const buttonPadding = 20; // Extra pixels for easier tapping
-            if ((gameOver || gameWon) && canRestart) {
-                 if (touchPos.x >= restartButton.x - buttonPadding && 
-                     touchPos.x <= restartButton.x + restartButton.width + buttonPadding &&
-                     touchPos.y >= restartButton.y - buttonPadding && 
-                     touchPos.y <= restartButton.y + restartButton.height + buttonPadding) {
-                     restartButton.isPressed = true;
-                 } else {
-                     isRestarting = true;
-                     canRestart = false;
-                 }
-                return;
-            }
-
-            if (!gameStarted) {
-                if (menuState === 'loop' && !isScoreboardVisible) {
-                    menuState = 'outro';
-                    menuFrame = 0;
-                    menuFrameTimer = 0;
-                    sounds.intro.pause();
-                    sounds.intro.currentTime = 0;
-                    startGame();
-                }
-            } else {
-                touchStartTime = Date.now();
-                isHoldingTouch = true;
-            }
-        }, { passive: false });
-
-        canvas.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            if (isRestarting || isResetting) return;
-
-            if (restartButton.isPressed) {
-                isResetting = true;
-                menuState = 'intro';
-                menuFrame = 0;
-                menuFrameTimer = 0;
+            if ((gameOver || gameWon) && canRestart && !restartButton.isPressed) {
+                isRestarting = true;
                 canRestart = false;
-                sounds.gateClose.play();
-                if(sounds.gecko) sounds.gecko.pause();
-                restartButton.isPressed = false;
                 return;
             }
+             restartButton.isPressed = false;
+             scoreboardButton.isPressed = false;
 
             const touchDuration = Date.now() - touchStartTime;
             if (gameStarted && isHoldingTouch) {
-                if (touchDuration < 250) { // It's a tap
+                if (touchDuration < 250) {
                     handleJump();
                 }
                 handleCrouchEnd();
+            } else if (!gameStarted && menuState === 'loop' && !isScoreboardVisible) {
+                menuState = 'outro';
+                menuFrame = 0;
+                menuFrameTimer = 0;
+                sounds.intro.pause();
+                sounds.intro.currentTime = 0;
+                startGame();
             }
             isHoldingTouch = false;
         }, { passive: false });
@@ -1106,7 +1155,6 @@
             }
 
             // --- UI Button updates
-            // Volume Button
             const volBtn = volumeButton;
             volBtn.scale += (volBtn.targetScale - volBtn.scale) * 0.2;
             volBtn.opacity += (volBtn.targetOpacity - volBtn.opacity) * 0.2;
@@ -1121,12 +1169,13 @@
                     volBtn.frameTimer = 0;
                 }
             }
-            // Scoreboard Button
+            
             const scoreBtn = scoreboardButton;
+            scoreBtn.scale += (scoreBtn.targetScale - scoreBtn.scale) * 0.2;
             if (menuState === 'intro' || menuState === 'loop') {
-                scoreBtn.y += (scoreBtn.targetY - scoreBtn.y) * 0.1;
+                scoreBtn.y += (scoreBtn.targetY - scoreBtn.y) * 0.05;
             } else {
-                 scoreBtn.y += (canvas.height + 20 - scoreBtn.y) * 0.1;
+                 scoreBtn.y += (canvas.height + 20 - scoreBtn.y) * 0.05;
             }
             if (scoreBtn.isAnimating) {
                 scoreBtn.frameTimer += deltaTime;
@@ -1153,6 +1202,10 @@
                     fadeDirection = 1;
                 }
                 return;
+            }
+
+            if (isPromptingName || isScoreboardVisible) {
+                return; // Pause game logic when prompt or scoreboard is visible
             }
 
             if (!gameStarted || isResetting || menuState === 'outro') {
@@ -1285,13 +1338,10 @@
             if (isResetting) {
                 drawGameOverStateForReset();
                 drawMenu();
-                drawVolumeButton();
-                drawScoreboardButton();
-                if(isScoreboardVisible) drawScoreboard();
-                return;
-            }
-
-            if (menuState === 'intro' || menuState === 'loop') {
+                if(isScoreboardVisible) {
+                    drawScoreboard();
+                }
+            } else if (menuState === 'intro' || menuState === 'loop') {
                 drawMenu();
                 if (isScoreboardVisible) {
                     drawScoreboard();
@@ -1305,8 +1355,12 @@
                 drawEndScreens();
             }
             
-            drawVolumeButton();
             drawScoreboardButton();
+            drawVolumeButton();
+
+            if (isPromptingName) {
+                drawNamePrompt();
+            }
 
             if (isRestarting) {
                 ctx.fillStyle = `rgba(255, 255, 255, ${restartFadeAmount})`;
@@ -1578,7 +1632,13 @@
                 const frameY = Math.floor(btn.frame / columns);
                 const sourceX = frameX * stateData.spriteWidth;
                 const sourceY = frameY * stateData.spriteHeight;
-                ctx.drawImage(images.scroll, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, btn.x, btn.y, btn.width, btn.height);
+
+                const w = btn.width * btn.scale;
+                const h = btn.height * btn.scale;
+                const x = btn.x - (w - btn.width) / 2;
+                const y = btn.y - (h - btn.height) / 2;
+
+                ctx.drawImage(images.scroll, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, x, y, w, h);
             }
         }
 
@@ -1596,7 +1656,7 @@
 
             if (highScores.length === 0) {
                 ctx.font = '20px "Segoe UI"';
-                ctx.fillText('No scores yet!', canvas.width / 2, canvas.height / 2);
+                ctx.fillText('Loading scores...', canvas.width / 2, canvas.height / 2);
             } else {
                  highScores.forEach((score, index) => {
                     const yPos = 130 + index * 25;
@@ -1611,17 +1671,44 @@
             }
         }
 
+        function drawNamePrompt() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const boxWidth = 400;
+            const boxHeight = 150;
+            const boxX = (canvas.width - boxWidth) / 2;
+            const boxY = (canvas.height - boxHeight) / 2;
+            ctx.fillStyle = '#f0f0f0';
+            ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+
+            ctx.fillStyle = 'black';
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 20px "Segoe UI"';
+            ctx.fillText('High Score! Enter your name:', canvas.width / 2, boxY + 40);
+            
+            ctx.fillStyle = '#333';
+            ctx.fillRect(boxX + 20, boxY + 55, boxWidth - 40, 40);
+            
+            ctx.fillStyle = 'white';
+            ctx.font = '24px Amanojaku';
+            ctx.fillText(highScoreName, canvas.width / 2, boxY + 85);
+            
+            ctx.fillStyle = 'black';
+            ctx.font = '14px "Segoe UI"';
+            ctx.fillText('(3-10 characters, press Enter to submit)', canvas.width / 2, boxY + 125);
+        }
+
         // --- Firebase Functions ---
         async function initializeFirebase() {
-            // This is a placeholder for your actual Firebase config
-            const firebaseConfig = {
-                apiKey: "YOUR_API_KEY",
-                authDomain: "YOUR_AUTH_DOMAIN",
-                projectId: "ninjarunnergame-b585e",
-                storageBucket: "YOUR_STORAGE_BUCKET",
-                messagingSenderId: "YOUR_SENDER_ID",
-                appId: "YOUR_APP_ID"
-            };
+             if (typeof __firebase_config === 'undefined') {
+                console.error("Firebase config is not available. Scoreboard will be disabled.");
+                return;
+            }
+            const firebaseConfig = JSON.parse(__firebase_config);
 
             try {
                 const app = window.firebase.initializeApp(firebaseConfig);
@@ -1650,27 +1737,26 @@
         
         async function saveScore() {
             if (!db || (highScores.length >= 10 && score <= highScores[highScores.length - 1].score)) {
-                return; // Don't save if score is not a high score
+                return; 
             }
+            isPromptingName = true;
+            highScoreName = '';
+        }
 
-            const name = prompt("High Score! Enter your name (3-10 chars):");
-            if (!name || name.length < 3 || name.length > 10) {
-                return; // Invalid name
-            }
-
-            try {
+        async function submitHighScore(name) {
+            if (!db) return;
+             try {
                 const scoresCollection = window.firebase.collection(db, 'scores');
                 await window.firebase.addDoc(scoresCollection, {
                     name: name.trim(),
                     score: score,
                     timestamp: new Date()
                 });
-                // If we now have more than 10 scores, delete the lowest one.
+                
                 if (highScores.length >= 10) {
                     const lowestScoreDocId = highScores[highScores.length-1].id;
                     await window.firebase.deleteDoc(window.firebase.doc(db, 'scores', lowestScoreDocId));
                 }
-
             } catch (e) {
                 console.error("Error saving score:", e);
             }
