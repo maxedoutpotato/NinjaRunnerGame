@@ -435,6 +435,7 @@
         }
         
         canvas.addEventListener('mousemove', (evt) => {
+            if (isPromptingName) return;
             const mousePos = getScaledCoordinates(evt);
             
             const volBtn = volumeButton;
@@ -498,7 +499,7 @@
 
         function handleCanvasRelease(pos) {
             const volBtn = volumeButton;
-            const volBtnPadding = isMobile ? 20 : 10;
+            const volBtnPadding = isMobile ? 30 : 10;
             if (pos.x >= volBtn.x - volBtnPadding && pos.x <= volBtn.x + volBtn.width + volBtnPadding &&
                 pos.y >= volBtn.y - volBtnPadding && pos.y <= volBtn.y + volBtn.height + volBtnPadding) {
                 toggleMute();
@@ -701,7 +702,7 @@
                 }
             }
             draw() {
-                if (this.image.complete && this.image.naturalWidth > 0) {
+                if (this.image && this.image.complete && this.image.naturalWidth > 0) {
                     const stateData = animationStates.teleport;
                     const columns = stateData.columns;
                     const frameX = this.frame % columns;
@@ -745,7 +746,7 @@
                 }
             }
             draw() {
-                if (this.image.complete && this.image.naturalWidth > 0 && this.opacity > 0) {
+                if (this.image && this.image.complete && this.image.naturalWidth > 0 && this.opacity > 0) {
                     ctx.save();
                     ctx.globalAlpha = this.opacity;
                     const stateData = animationStates.runCloud;
@@ -805,7 +806,7 @@
                 this.y = MOUNTAIN_Y_POS; this.speedModifier = 0.06;
             }
             draw() {
-                if (this.image.complete && this.image.naturalWidth > 0) {
+                if (this.image && this.image.complete && this.image.naturalWidth > 0) {
                     ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
                 }
             }
@@ -833,7 +834,7 @@
                 }
             }
             draw() {
-                if (this.image.complete && this.image.naturalWidth > 0) {
+                if (this.image && this.image.complete && this.image.naturalWidth > 0) {
                     const stateData = animationStates.shuriken;
                     const columns = stateData.columns;
                     const frameX = this.frame % columns;
@@ -861,7 +862,7 @@
                 this.hitbox = { offsetX: 18, offsetY: 10, width: 55, height: 65 };
             }
              draw() {
-                if (this.image.complete && this.image.naturalWidth > 0) {
+                if (this.image && this.image.complete && this.image.naturalWidth > 0) {
                     ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
                     if (DEBUG_MODE) {
                         ctx.save();
@@ -883,7 +884,7 @@
                 this.hitbox = { offsetX: 40, offsetY: 60 , width: 60, height: 45 };
             }
             draw() {
-                 if (this.image.complete && this.image.naturalWidth > 0) {
+                 if (this.image && this.image.complete && this.image.naturalWidth > 0) {
                     ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
                     if (DEBUG_MODE) {
                         ctx.save();
@@ -914,7 +915,7 @@
                 }
             }
             draw() {
-                if (this.image.complete && this.image.naturalWidth > 0) {
+                if (this.image && this.image.complete && this.image.naturalWidth > 0) {
                     const stateData = animationStates.teleportGold;
                     const columns = stateData.columns;
                     const frameX = this.frame % columns;
@@ -935,7 +936,7 @@
                 this.hitbox = { offsetX: 0, offsetY: 0, width: 80, height: 80 };
             }
             draw() {
-                if (this.image.complete && this.image.naturalWidth > 0) {
+                if (this.image && this.image.complete && this.image.naturalWidth > 0) {
                     ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
                 }
             }
@@ -1165,7 +1166,7 @@
             // This needs to update every frame for the portrait mode message
             rotateFrameTimer += deltaTime;
             const rotateData = animationStates.rotate;
-            if (rotateFrameTimer >= rotateData.frameDuration) {
+            if (rotateData && rotateFrameTimer >= rotateData.frameDuration) {
                 rotateFrame = (rotateFrame + 1) % rotateData.frames;
                 rotateFrameTimer = 0;
             }
@@ -1176,7 +1177,7 @@
             volBtn.opacity += (volBtn.targetOpacity - volBtn.opacity) * 0.2;
             volBtn.frameTimer += deltaTime;
             const volAnimData = animationStates.volume;
-            if (volBtn.frameTimer >= volAnimData.frameDuration) {
+            if (volAnimData && volBtn.frameTimer >= volAnimData.frameDuration) {
                 if (isMuted && volBtn.frame > 0) {
                     volBtn.frame--;
                     volBtn.frameTimer = 0;
@@ -1200,7 +1201,7 @@
             if (scoreBtn.isAnimating) {
                 scoreBtn.frameTimer += deltaTime;
                 const scoreAnimData = animationStates.scroll;
-                 if (scoreBtn.frameTimer >= scoreAnimData.frameDuration) {
+                 if (scoreAnimData && scoreBtn.frameTimer >= scoreAnimData.frameDuration) {
                      scoreBtn.frame += scoreBtn.animationDirection;
                      scoreBtn.frameTimer = 0;
                      if (scoreBtn.frame >= scoreAnimData.frames -1 || scoreBtn.frame <= 0) {
@@ -1278,7 +1279,7 @@
                 restartButton.frameTimer += deltaTime;
                 if (restartButton.isHovered && !isMobile) {
                     const stateData = animationStates.button;
-                    if (restartButton.frameTimer >= stateData.frameDuration) {
+                    if (stateData && restartButton.frameTimer >= stateData.frameDuration) {
                         restartButton.frame = (restartButton.frame + 1) % stateData.frames;
                         restartButton.frameTimer = 0;
                     }
@@ -1326,17 +1327,19 @@
             }
             player.frameTimer += deltaTime;
             const stateData = animationStates[player.state];
-            let dynamicFrameDuration = stateData.frameDuration;
-            if (player.state === 'run' || player.state === 'crouch') {
-                dynamicFrameDuration = Math.max(0.02, stateData.frameDuration - (gameSpeed / 10000));
-            }
-            if (player.frameTimer >= dynamicFrameDuration) {
-                if (player.state === 'fall') {
-                    if (player.frame < stateData.frames - 1) player.frame++;
-                } else {
-                    player.frame = (player.frame + 1) % stateData.frames;
+            if (stateData) {
+                let dynamicFrameDuration = stateData.frameDuration;
+                if (player.state === 'run' || player.state === 'crouch') {
+                    dynamicFrameDuration = Math.max(0.02, stateData.frameDuration - (gameSpeed / 10000));
                 }
-                player.frameTimer = 0;
+                if (player.frameTimer >= dynamicFrameDuration) {
+                    if (player.state === 'fall') {
+                        if (player.frame < stateData.frames - 1) player.frame++;
+                    } else {
+                        player.frame = (player.frame + 1) % stateData.frames;
+                    }
+                    player.frameTimer = 0;
+                }
             }
             effectsArray.forEach(effect => effect.update(deltaTime));
             effectsArray = effectsArray.filter(effect => !effect.markedForDeletion);
@@ -1406,7 +1409,7 @@
                  ctx.drawImage(images.background1, Math.floor(bg1X + scaledWidth) - 1, BG1_Y_POS, scaledWidth, scaledHeight);
                  ctx.drawImage(images.background1, Math.floor(bg1X + scaledWidth * 2) - 2, BG1_Y_POS, scaledWidth, scaledHeight);
              }
-             if (images.ground.complete && images.ground.naturalWidth > 0) {
+             if (images.ground && images.ground.complete && images.ground.naturalWidth > 0) {
                  const groundY = canvas.height - GROUND_HEIGHT_PHYSICS + VISUAL_GROUND_Y_OFFSET;
                  ctx.drawImage(images.ground, Math.floor(groundX), groundY, images.ground.width, VISUAL_GROUND_HEIGHT);
                  ctx.drawImage(images.ground, Math.floor(groundX + images.ground.width) -1, groundY, images.ground.width, VISUAL_GROUND_HEIGHT);
@@ -1416,7 +1419,7 @@
              effectsArray.forEach(effect => effect.draw());
              if (!player.isTeleporting) {
                  const playerStateData = animationStates[player.state];
-                 if (images[player.state] && images[player.state].complete) {
+                 if (images[player.state] && images[player.state].complete && images[player.state].naturalWidth > 0) {
                      const columns = playerStateData.columns;
                      const frameX = player.frame % columns;
                      const frameY = Math.floor(player.frame / columns);
@@ -1481,7 +1484,7 @@
             ctx.restore();
 
             ctx.textAlign = 'left';
-            if (teleportCharges > 0 && images.teleportLogo.complete) {
+            if (teleportCharges > 0 && images.teleportLogo && images.teleportLogo.complete && images.teleportLogo.naturalWidth > 0) {
                 ctx.drawImage(images.teleportLogo, 20, 15, 40, 40);
 
                 let teleportFontSize = 30;
@@ -1531,7 +1534,7 @@
         }
         
         function drawRestartButton() {
-            if (images.button && images.button.complete) {
+            if (images.button && images.button.complete && images.button.naturalWidth > 0) {
                 const stateData = animationStates.button;
                 const columns = stateData.columns;
                 const frameX = restartButton.frame % columns;
@@ -1557,7 +1560,7 @@
         }
 
         function drawPreMenu() {
-            if ((isMobile && images.tap) || (!isMobile && images.space)) {
+            if ((isMobile && images.tap && images.tap.complete && images.tap.naturalWidth > 0) || (!isMobile && images.space && images.space.complete && images.space.naturalWidth > 0)) {
                 const preMenuImage = isMobile ? images.tap : images.space;
                 const stateData = isMobile ? animationStates.tap : animationStates.space;
                 const columns = stateData.columns;
@@ -1617,7 +1620,7 @@
         }
         
         function drawRotateCanvas() {
-            if (images.rotate && images.rotate.complete) {
+            if (images.rotate && images.rotate.complete && images.rotate.naturalWidth > 0) {
                 const stateData = animationStates.rotate;
                 const columns = stateData.columns;
                 const frameX = rotateFrame % columns;
@@ -1630,7 +1633,7 @@
         }
 
         function drawVolumeButton() {
-            if (images.volume && images.volume.complete) {
+            if (images.volume && images.volume.complete && images.volume.naturalWidth > 0) {
                 ctx.save();
                 ctx.globalAlpha = volumeButton.opacity;
                 const stateData = animationStates.volume;
@@ -1651,7 +1654,7 @@
         }
 
         function drawScoreboardButton() {
-             if (images.scroll && images.scroll.complete) {
+             if (images.scroll && images.scroll.complete && images.scroll.naturalWidth > 0) {
                 const btn = scoreboardButton;
                 const stateData = animationStates.scroll;
                 const columns = stateData.columns;
