@@ -8,15 +8,15 @@
     <!-- Open Graph Meta Tags for Link Previews -->
     <meta property="og:title" content="Ninja Runner Game" />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://maxedoutpotato.github.io/NinjaRunnerGame/" />
-    <meta property="og:image" content="https://maxedoutpotato.github.io/NinjaRunnerGame/Assets/Preview/preview.png" />
+    <meta property="og:url" content="[https://maxedoutpotato.github.io/NinjaRunnerGame/](https://maxedoutpotato.github.io/NinjaRunnerGame/)" />
+    <meta property="og:image" content="[https://maxedoutpotato.github.io/NinjaRunnerGame/Assets/Preview/preview.png](https://maxedoutpotato.github.io/NinjaRunnerGame/Assets/Preview/preview.png)" />
     <meta property="og:description" content="A fast-paced 2D endless runner. Jump and crouch to dodge obstacles and collect bonuses in this challenging ninja adventure!" />
 
     <!-- Firebase SDKs -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, query, orderBy, limit, addDoc, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { initializeApp } from "[https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js](https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js)";
+        import { getAuth, signInAnonymously } from "[https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js](https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js)";
+        import { getFirestore, collection, onSnapshot, query, orderBy, limit, addDoc, doc, deleteDoc } from "[https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js](https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js)";
         
         // Expose Firebase functions to the global scope so our script can use them.
         window.firebase = {
@@ -40,7 +40,7 @@
         /* Define the custom font */
         @font-face {
             font-family: 'Amanojaku';
-            src: url('https://maxedoutpotato.github.io/NinjaRunnerGame/Amanojaku%20Demo.otf') format('opentype');
+            src: url('[https://maxedoutpotato.github.io/NinjaRunnerGame/Amanojaku%20Demo.otf](https://maxedoutpotato.github.io/NinjaRunnerGame/Amanojaku%20Demo.otf)') format('opentype');
         }
 
         /* Basic styling to center the game and make it look clean */
@@ -261,7 +261,7 @@
         };
 
         // --- Asset Loading ---
-        const GITHUB_REPO_URL = 'https://maxedoutpotato.github.io/NinjaRunnerGame/';
+        const GITHUB_REPO_URL = '[https://maxedoutpotato.github.io/NinjaRunnerGame/](https://maxedoutpotato.github.io/NinjaRunnerGame/)';
         const images = {};
         const sounds = {};
         const imageSources = {
@@ -305,23 +305,29 @@
         let assetsLoaded = 0;
         const totalAssets = Object.keys(imageSources).length + Object.keys(soundSources).length;
 
+        function assetLoadCallback(type, src) {
+            if (type === 'error') {
+                console.warn(`Failed to load asset, but continuing: ${src}`);
+            }
+            assetsLoaded++;
+        }
+
         function preloadAssets() {
             for (const key in imageSources) {
                 images[key] = new Image();
-                images[key].src = GITHUB_REPO_URL + imageSources[key];
-                images[key].onload = assetLoaded;
-                images[key].onerror = () => console.error(`Failed to load image: ${images[key].src}`);
+                const src = GITHUB_REPO_URL + imageSources[key];
+                images[key].src = src;
+                images[key].onload = () => assetLoadCallback('success', src);
+                images[key].onerror = () => assetLoadCallback('error', src);
             }
             for (const key in soundSources) {
                 sounds[key] = new Audio();
-                sounds[key].src = GITHUB_REPO_URL + soundSources[key];
+                const src = GITHUB_REPO_URL + soundSources[key];
+                sounds[key].src = src;
                 if (key === 'track' || key === 'intro' || key === 'gecko') sounds[key].loop = true;
-                sounds[key].addEventListener('canplaythrough', assetLoaded, { once: true });
-                sounds[key].onerror = () => console.error(`Failed to load sound: ${sounds[key].src}`);
+                sounds[key].addEventListener('canplaythrough', () => assetLoadCallback('success', src), { once: true });
+                sounds[key].onerror = () => assetLoadCallback('error', src);
             }
-        }
-        function assetLoaded() {
-            assetsLoaded++;
         }
 
         // --- Input Handling ---
@@ -490,7 +496,7 @@
 
         function handleCanvasRelease(pos) {
             const volBtn = volumeButton;
-            const volBtnPadding = isMobile ? 20 : 0;
+            const volBtnPadding = isMobile ? 20 : 10;
             if (pos.x >= volBtn.x - volBtnPadding && pos.x <= volBtn.x + volBtn.width + volBtnPadding &&
                 pos.y >= volBtn.y - volBtnPadding && pos.y <= volBtn.y + volBtn.height + volBtnPadding) {
                 toggleMute();
