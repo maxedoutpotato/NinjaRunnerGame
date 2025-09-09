@@ -197,6 +197,9 @@
         let isScoreboardVisible = false;
         let isPromptingName = false;
         let highScoreName = '';
+        let recordBroken = false;
+        let scoreLabelColor = 'black';
+        let scoreLabelScale = 1;
 
         // --- Firebase State ---
         let db, auth;
@@ -370,7 +373,6 @@
                 if (event.key === 'Enter') {
                     if (highScoreName.length >= 3 && highScoreName.length <= 10) {
                         submitHighScore(highScoreName);
-                        isPromptingName = false;
                     }
                 } else if (event.key === 'Backspace') {
                     highScoreName = highScoreName.slice(0, -1);
@@ -988,6 +990,11 @@
         function addScore(points, color = {r:0, g:100, b:0}) {
             const oldScore = score;
             score += points;
+
+            if (!recordBroken && highScores.length > 0 && score > highScores[highScores.length - 1].score) {
+                recordBroken = true;
+            }
+
             if (Math.floor(score / 1000) > Math.floor(oldScore / 1000)) {
                 sounds.kabuki.play();
                 scoreBounceTimer = 0.5;
@@ -1102,6 +1109,7 @@
             scoreBounceTimer = 0; teleportBounceTimer = 0;
             isScoreboardVisible = false;
             wantsToCrouch = false;
+            recordBroken = false;
             bonusSpawns = {
                 teleportGold: { '3000': 0, '9000': 0, '15000': 0 },
                 bonusPoints: { '3000': 0, '6000': 0, '9000': 0, '12000': 0, '15000': 0, '19000': 0, '21000': 0 }
@@ -1154,6 +1162,7 @@
         
         // --- Main Update and Draw Functions ---
         function update(deltaTime) {
+            // This needs to update every frame for the portrait mode message
             rotateFrameTimer += deltaTime;
             const rotateData = animationStates.rotate;
             if (rotateFrameTimer >= rotateData.frameDuration) {
@@ -1161,7 +1170,7 @@
                 rotateFrameTimer = 0;
             }
 
-            // --- UI Button updates
+            // UI Button animations should always update
             const volBtn = volumeButton;
             volBtn.scale += (volBtn.targetScale - volBtn.scale) * 0.2;
             volBtn.opacity += (volBtn.targetOpacity - volBtn.opacity) * 0.2;
@@ -1183,10 +1192,10 @@
             }
             scoreBtn.scale += (scoreBtn.targetScale - scoreBtn.scale) * 0.2;
 
-            if (menuState === 'intro' || menuState === 'loop') {
-                scoreBtn.y += (scoreBtn.targetY - scoreBtn.y) * 0.05;
+            if (menuState === 'intro' || menuState === 'loop' || (isPromptingName && isResetting)) {
+                scoreBtn.y += (scoreBtn.targetY - scoreBtn.y) * 0.1;
             } else {
-                 scoreBtn.y += (canvas.height + 20 - scoreBtn.y) * 0.05;
+                 scoreBtn.y += (canvas.height + 50 - scoreBtn.y) * 0.1;
             }
             if (scoreBtn.isAnimating) {
                 scoreBtn.frameTimer += deltaTime;
@@ -1214,26 +1223,14 @@
                 }
                 return;
             }
-
-            if (isPromptingName || isScoreboardVisible) {
-                return; // Pause game logic when prompt or scoreboard is visible
+            
+            if (isResetting || isPromptingName || isScoreboardVisible) {
+                 updateMenu(deltaTime);
+                 return;
             }
 
-            if (!gameStarted || isResetting || menuState === 'outro') {
-                if (isResetting) {
-                    updateMenu(deltaTime);
-                    return;
-                }
-                if (menuState === 'pre-menu') {
-                    preMenuFrameTimer += deltaTime;
-                    const preMenuAnimation = isMobile ? animationStates.tap : animationStates.space;
-                    if (preMenuFrameTimer >= preMenuAnimation.frameDuration) {
-                        preMenuFrame = (preMenuFrame + 1) % preMenuAnimation.frames;
-                        preMenuFrameTimer = 0;
-                    }
-                } else {
-                    updateMenu(deltaTime);
-                }
+            if (!gameStarted || menuState === 'outro') {
+                updateMenu(deltaTime);
                 if (!gameStarted || menuState !== 'inactive') {
                     return;
                 }
@@ -1264,6 +1261,14 @@
                 if (holdDuration > 200) {
                     handleCrouchStart();
                 }
+            }
+
+            if (recordBroken) {
+                scoreLabelColor = 'red';
+                scoreLabelScale = 1.0 + Math.sin(lastTime / 150) * 0.1;
+            } else {
+                scoreLabelColor = 'black';
+                scoreLabelScale = 1.0;
             }
 
             if (scoreBounceTimer > 0) scoreBounceTimer -= deltaTime;
@@ -1342,16 +1347,13 @@
 
             if (menuState === 'pre-menu') {
                 drawPreMenu();
-                drawVolumeButton();
-                return;
-            }
-            
-            if (isResetting) {
+            } else if (isResetting) {
                 drawGameOverStateForReset();
-                drawMenu();
-                if(isScoreboardVisible) {
-                    drawScoreboard();
+                if (isPromptingName) {
+                    drawNamePrompt();
+                    drawScoreboardButton();
                 }
+                drawMenu();
             } else if (menuState === 'intro' || menuState === 'loop') {
                 drawMenu();
                 if (isScoreboardVisible) {
@@ -1366,11 +1368,15 @@
                 drawEndScreens();
             }
             
-            drawScoreboardButton();
+            if (menuState === 'loop' || (canRestart && (gameOver || gameWon))) {
+                 drawScoreboardButton();
+            }
+            
             drawVolumeButton();
 
-            if (isPromptingName) {
+            if (isPromptingName && !isResetting) {
                 drawNamePrompt();
+                drawScoreboardButton();
             }
 
             if (isRestarting) {
@@ -1460,9 +1466,19 @@
             const scoreNumberWidth = ctx.measureText(scoreNumberText).width;
             ctx.fillText(scoreNumberText, canvas.width - 20, 40);
             
-            ctx.fillStyle = 'black';
+            ctx.fillStyle = scoreLabelColor;
             ctx.font = 'bold 24px "Segoe UI"';
-            ctx.fillText('SCORE: ', canvas.width - 20 - scoreNumberWidth, 40);
+            
+            const scoreLabel = 'SCORE: ';
+            const scoreLabelWidth = ctx.measureText(scoreLabel).width;
+            const scoreX = canvas.width - 20 - scoreNumberWidth;
+            
+            ctx.save();
+            ctx.translate(scoreX - (scoreLabelWidth / 2), 40);
+            ctx.scale(scoreLabelScale, scoreLabelScale);
+            ctx.translate(-(scoreX - (scoreLabelWidth / 2)), -40);
+            ctx.fillText(scoreLabel, scoreX, 40);
+            ctx.restore();
 
             ctx.textAlign = 'left';
             if (teleportCharges > 0 && images.teleportLogo.complete) {
@@ -1747,15 +1763,25 @@
         }
         
         async function saveScore() {
-            if (!db || (highScores.length >= 10 && score <= highScores[highScores.length - 1].score)) {
+            if (!db || (highScores.length > 0 && highScores.length >= 10 && score <= highScores[highScores.length - 1].score)) {
                 return; 
             }
             isPromptingName = true;
             highScoreName = '';
+            scoreboardButton.isAnimating = true;
+            scoreboardButton.animationDirection = 1;
         }
 
         async function submitHighScore(name) {
             if (!db) return;
+            isPromptingName = false;
+            isResetting = true;
+            menuState = 'intro';
+            menuFrame = 0;
+            menuFrameTimer = 0;
+            canRestart = false;
+            sounds.gateClose.play();
+
              try {
                 const scoresCollection = window.firebase.collection(db, 'scores');
                 await window.firebase.addDoc(scoresCollection, {
@@ -1781,7 +1807,7 @@
             scoreboardButton.targetY = canvas.height - 130;
 
             volumeButton.x = canvas.width / 2 - 30;
-            volumeButton.y = canvas.height - 95;
+            volumeButton.y = canvas.height - 90;
         }
 
         // --- Game Initialization ---
