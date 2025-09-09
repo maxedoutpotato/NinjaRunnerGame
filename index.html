@@ -217,24 +217,24 @@
             x: 50, y: PLAYER_GROUND_LEVEL, width: PLAYER_DRAW_WIDTH, height: PLAYER_DRAW_HEIGHT,
             velocityY: 0, isJumping: false, isCrouching: false, isTeleporting: false,
             frame: 0, frameTimer: 0, state: 'run',
-            hitbox: { offsetX: 20, offsetY: 30, width: 65, height: 40 },
+            hitbox: { offsetX: 20, offsetY: 20, width: 65, height: 40 },
             crouchHitbox: { offsetX: 10, offsetY: 50, width: 70, height: 30 }
         };
         
         // --- UI Button States ---
         let restartButton = {
-            x: canvas.width - 130, y: canvas.height - 130, width: 120, height: 120,
+            x: 0, y: 0, width: 120, height: 120,
             frame: 0, frameTimer: 0, isHovered: false, isPressed: false
         };
         let scoreboardButton = {
-            x: canvas.width - 130, y: canvas.height, // Start off-screen
-            targetY: canvas.height - 130,
+            x: 0, y: canvas.height, // Start off-screen
+            targetY: 0,
             width: 120, height: 120,
             frame: 0, frameTimer: 0, isHovered: false, isPressed: false, isAnimating: false, animationDirection: 1,
             scale: 1, targetScale: 1
         };
         let volumeButton = {
-            x: canvas.width / 2 - 40, y: canvas.height - 75, width: 80, height: 80,
+            x: 0, y: 0, width: 70, height: 70,
             frame: 5, frameTimer: 0, isHovered: false, scale: 1, targetScale: 1,
             opacity: 0.4, targetOpacity: 0.4
         };
@@ -435,7 +435,7 @@
                 mousePos.y >= volBtn.y && mousePos.y <= volBtn.y + volBtn.height) {
                 if (!volBtn.isHovered) {
                     volBtn.isHovered = true;
-                    volBtn.targetScale = 1.25;
+                    volBtn.targetScale = 1.4;
                     volBtn.targetOpacity = 1.0;
                 }
             } else {
@@ -498,7 +498,7 @@
                 pos.y >= volBtn.y && pos.y <= volBtn.y + volBtn.height) {
                 toggleMute();
                 if (isMobile) {
-                    volBtn.targetScale = 1.25;
+                    volBtn.targetScale = 1.4;
                     volBtn.targetOpacity = 1.0;
                     setTimeout(() => {
                         if (!volBtn.isHovered) {
@@ -515,14 +515,17 @@
                 isScoreboardVisible = false;
                 scoreboardButton.isAnimating = true;
                 scoreboardButton.animationDirection = -1;
+                scoreboardButton.isHovered = false; // Ensure hover state resets
                 scoreboardButton.targetScale = 1.0;
                 return true;
             }
 
             // PRIORITY 3: INTERACTIVE BUTTONS based on game state
             const scoreBtn = scoreboardButton;
-            if (menuState === 'loop' && pos.x >= scoreBtn.x && pos.x <= scoreBtn.x + scoreBtn.width &&
-                pos.y >= scoreBtn.y && pos.y <= scoreBtn.y + scoreBtn.height) {
+            const scoreBtnPadding = isMobile ? 20 : 0; // Larger hitbox for touch
+            if (menuState === 'loop' && 
+                pos.x >= scoreBtn.x - scoreBtnPadding && pos.x <= scoreBtn.x + scoreBtn.width + scoreBtnPadding &&
+                pos.y >= scoreBtn.y - scoreBtnPadding && pos.y <= scoreBtn.y + scoreBtn.height + scoreBtnPadding) {
                 isScoreboardVisible = true;
                 scoreBtn.isAnimating = true;
                 scoreBtn.animationDirection = 1;
@@ -813,7 +816,7 @@
                 this.spriteWidth = 50; this.spriteHeight = 50;
                 this.width = 70; this.height = 70;
                 this.y = SHURIKEN_FLYING_HEIGHTS[Math.floor(Math.random() * SHURIKEN_FLYING_HEIGHTS.length)];
-                this.speedModifier = 1.1; this.hitbox = { offsetX: 15, offsetY: 10, width: 45, height: 40 };
+                this.speedModifier = 1.1; this.hitbox = { offsetX: 15, offsetY: 15, width: 45, height: 40 };
             }
             update(deltaTime) {
                 super.update(deltaTime);
@@ -872,7 +875,7 @@
                 this.width = 140; this.height = 130;
                 this.y = PLAYER_GROUND_LEVEL + PLAYER_DRAW_HEIGHT - this.height + 20;
                 this.speedModifier = 1.0;
-                this.hitbox = { offsetX: 35, offsetY: 50 , width: 75, height: 45 };
+                this.hitbox = { offsetX: 40, offsetY: 60 , width: 60, height: 45 };
             }
             draw() {
                  if (this.image.complete && this.image.naturalWidth > 0) {
@@ -1095,6 +1098,7 @@
             scoreMilestone = 1; teleportCharges = 0; inversionAmount = 0; inversionTarget = 0;
             scoreBounceTimer = 0; teleportBounceTimer = 0;
             isScoreboardVisible = false;
+            wantsToCrouch = false;
             bonusSpawns = {
                 teleportGold: { '3000': 0, '9000': 0, '15000': 0 },
                 bonusPoints: { '3000': 0, '6000': 0, '9000': 0, '12000': 0, '15000': 0, '19000': 0, '21000': 0 }
@@ -1762,6 +1766,17 @@
             }
         }
 
+        function repositionUIElements() {
+            restartButton.x = canvas.width - 130;
+            restartButton.y = canvas.height - 130;
+
+            scoreboardButton.x = canvas.width - 130;
+            scoreboardButton.targetY = canvas.height - 130;
+
+            volumeButton.x = canvas.width / 2 - 35;
+            volumeButton.y = canvas.height - 85;
+        }
+
         // --- Game Initialization ---
         function mainLoop(currentTime) {
             if (!lastTime) lastTime = currentTime;
@@ -1786,6 +1801,9 @@
                 return;
             }
             
+            repositionUIElements();
+            window.addEventListener('resize', repositionUIElements);
+
             initializeFirebase();
             lastTime = performance.now();
             mainLoop(lastTime);
