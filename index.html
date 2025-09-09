@@ -239,7 +239,7 @@
         let volumeButton = {
             x: 0, y: 0, width: 60, height: 60,
             frame: 5, frameTimer: 0, isHovered: false, scale: 1, targetScale: 1,
-            opacity: 0.4, targetOpacity: 0.4
+            opacity: 0.4, targetOpacity: 0.4, isPressed: false
         };
 
         // --- Animation Data ---
@@ -573,14 +573,24 @@
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
             if (isRestarting || isResetting || isPromptingName) return;
-
+        
             const touchPos = getScaledCoordinates(e);
+            
+            const volBtn = volumeButton;
+            const volBtnPadding = 30;
+            if (touchPos.x >= volBtn.x - volBtnPadding && touchPos.x <= volBtn.x + volBtn.width + volBtnPadding &&
+                touchPos.y >= volBtn.y - volBtnPadding && touchPos.y <= volBtn.y + volBtn.height + volBtnPadding) {
+                volBtn.isPressed = true;
+                return;
+            }
+        
             const scoreBtn = scoreboardButton;
             const scoreBtnPadding = 30;
             if (menuState === 'loop' && 
                 touchPos.x >= scoreBtn.x - scoreBtnPadding && touchPos.x <= scoreBtn.x + scoreBtn.width + scoreBtnPadding &&
                 touchPos.y >= scoreBtn.y - scoreBtnPadding && touchPos.y <= scoreBtn.y + scoreBtn.height + scoreBtnPadding) {
                 scoreBtn.isPressed = true;
+                return;
             }
             
             const restartBtnPadding = 20;
@@ -590,49 +600,51 @@
                 touchPos.y >= restartButton.y - restartBtnPadding && 
                 touchPos.y <= restartButton.y + restartButton.height + restartBtnPadding) {
                 restartButton.isPressed = true;
+                return;
             }
-
-            if (!gameStarted && !isScoreboardVisible) {
-                 if (menuState !== 'loop') {
-                    touchStartTime = Date.now();
-                    isHoldingTouch = true;
-                 }
-            } else if (gameStarted) {
-                touchStartTime = Date.now();
-                isHoldingTouch = true;
-            }
-
+        
+            touchStartTime = Date.now();
+            isHoldingTouch = true;
+        
         }, { passive: false });
 
         canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
-            isHoldingTouch = false; // Fixes crouch bug on restart
             if (isRestarting || isResetting || isPromptingName) return;
             
-            if (handleCanvasRelease(getScaledCoordinates(e))) {
-                restartButton.isPressed = false;
+            const touchPos = getScaledCoordinates(e);
+
+            if (volumeButton.isPressed) {
+                volumeButton.isPressed = false;
+                handleCanvasRelease(touchPos);
+                return;
+            }
+            if (scoreboardButton.isPressed) {
                 scoreboardButton.isPressed = false;
+                handleCanvasRelease(touchPos);
+                return;
+            }
+            if (restartButton.isPressed) {
+                restartButton.isPressed = false;
+                handleCanvasRelease(touchPos);
                 return;
             }
 
+            isHoldingTouch = false;
             if (menuState === 'pre-menu') {
                 unlockAudio();
                 return;
             }
 
-            if ((gameOver || gameWon) && canRestart && !restartButton.isPressed) {
+            if ((gameOver || gameWon) && canRestart) {
                 isRestarting = true;
                 canRestart = false;
                 return;
             }
-             restartButton.isPressed = false;
-             scoreboardButton.isPressed = false;
-
+            
             const touchDuration = Date.now() - touchStartTime;
-            if (gameStarted && touchDuration > 0) { // check touchDuration to ensure it's a valid touch
-                if (touchDuration < 250) {
-                    handleJump();
-                }
+            if (gameStarted && touchDuration > 0) {
+                if (touchDuration < 250) handleJump();
                 handleCrouchEnd();
             } else if (!gameStarted && menuState === 'loop' && !isScoreboardVisible) {
                 menuState = 'outro';
@@ -1228,6 +1240,16 @@
             if (isResetting || isPromptingName || isScoreboardVisible) {
                  updateMenu(deltaTime);
                  return;
+            }
+            
+            if (menuState === 'pre-menu') {
+                preMenuFrameTimer += deltaTime;
+                const preMenuAnimation = isMobile ? animationStates.tap : animationStates.space;
+                if (preMenuAnimation && preMenuFrameTimer >= preMenuAnimation.frameDuration) {
+                    preMenuFrame = (preMenuFrame + 1) % preMenuAnimation.frames;
+                    preMenuFrameTimer = 0;
+                }
+                return; 
             }
 
             if (!gameStarted || menuState === 'outro') {
