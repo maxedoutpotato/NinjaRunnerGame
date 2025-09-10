@@ -228,19 +228,19 @@
         // --- UI Button States ---
         let restartButton = {
             x: 0, y: 0, width: 120, height: 120,
-            frame: 0, frameTimer: 0, isHovered: false, isPressed: false
+            frame: 0, frameTimer: 0, isHovered: false
         };
         let scoreboardButton = {
             x: 0, y: canvas.height, // Start off-screen
             targetY: 0,
             width: 120, height: 120,
-            frame: 0, frameTimer: 0, isHovered: false, isPressed: false, isAnimating: false, animationDirection: 1,
+            frame: 0, frameTimer: 0, isHovered: false, isAnimating: false, animationDirection: 1,
             scale: 1, targetScale: 1
         };
         let volumeButton = {
             x: 0, y: 0, width: 60, height: 60,
             frame: 5, frameTimer: 0, isHovered: false, scale: 1, targetScale: 1,
-            opacity: 0.4, targetOpacity: 0.4, isPressed: false
+            opacity: 0.4, targetOpacity: 0.4
         };
 
         // --- Animation Data ---
@@ -452,7 +452,8 @@
         canvas.addEventListener('mousemove', (evt) => {
             if (isPromptingName) return;
             const mousePos = getScaledCoordinates(evt);
-            
+            if (!mousePos) return;
+
             const volBtn = volumeButton;
             const volBtnPadding = 10;
             if (mousePos.x >= volBtn.x - volBtnPadding && mousePos.x <= volBtn.x + volBtn.width + volBtnPadding &&
@@ -541,7 +542,7 @@
 
             const scoreBtn = scoreboardButton;
             const scoreBtnPadding = isMobile ? 30 : 0;
-            if ((menuState === 'loop' || (recordBroken && (gameOver || gameWon))) && 
+            if (menuState === 'loop' && 
                 pos.x >= scoreBtn.x - scoreBtnPadding && pos.x <= scoreBtn.x + scoreBtn.width + scoreBtnPadding &&
                 pos.y >= scoreBtn.y - scoreBtnPadding && pos.y <= scoreBtn.y + scoreBtn.height + scoreBtnPadding) {
                 isScoreboardVisible = true;
@@ -551,8 +552,9 @@
                 return true;
             }
 
-            if (restartButton.isPressed || (restartButton.isHovered && canRestart)) {
-                 restartButton.isPressed = false;
+            if (canRestart && (gameOver || gameWon) &&
+                 pos.x >= restartButton.x - scoreBtnPadding && pos.x <= restartButton.x + restartButton.width + scoreBtnPadding &&
+                 pos.y >= restartButton.y - scoreBtnPadding && pos.y <= restartButton.y + restartButton.height + scoreBtnPadding) {
                  isResetting = true;
                  menuState = 'intro';
                  menuFrame = 0;
@@ -567,32 +569,18 @@
 
         canvas.addEventListener('mousedown', (evt) => {
             if(isPromptingName) return;
-            const pos = getScaledCoordinates(evt);
-            if(!pos) return;
-            const scoreBtn = scoreboardButton;
-            if (menuState === 'loop' && pos.x >= scoreBtn.x && pos.x <= scoreBtn.x + scoreBtn.width &&
-                pos.y >= scoreBtn.y && pos.y <= scoreBtn.y + scoreBtn.height) {
-                scoreBtn.isPressed = true;
-            }
-            if (restartButton.isHovered && canRestart) {
-                 restartButton.isPressed = true;
-            }
         });
 
          canvas.addEventListener('mouseup', (evt) => {
              if(isPromptingName) return;
              handleCanvasRelease(getScaledCoordinates(evt));
-             restartButton.isPressed = false;
-             scoreboardButton.isPressed = false;
         });
 
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
             if (isRestarting || isResetting || isPromptingName) return;
-            
             touchStartTime = Date.now();
             isHoldingTouch = true;
-        
         }, { passive: false });
 
         canvas.addEventListener('touchend', (e) => {
@@ -602,7 +590,6 @@
             const touchPos = getScaledCoordinates(e);
             if (!touchPos) return;
 
-            // First, check for button presses since they take priority.
             if (handleCanvasRelease(touchPos)) {
                 isHoldingTouch = false;
                 touchStartTime = 0;
