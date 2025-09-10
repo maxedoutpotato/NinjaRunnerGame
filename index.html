@@ -431,16 +431,11 @@
             let clientY = 0;
             
             // Handle different event types properly
-            if (evt.type === 'touchend' || evt.type === 'touchcancel') {
-                // For touchend/touchcancel, use changedTouches
-                if (evt.changedTouches && evt.changedTouches[0]) {
+            if (evt.type.startsWith('touch')) {
+                 if (evt.changedTouches && evt.changedTouches[0]) {
                     clientX = evt.changedTouches[0].clientX;
                     clientY = evt.changedTouches[0].clientY;
                 }
-            } else if (evt.touches && evt.touches[0]) {
-                // For touchstart/touchmove, use touches
-                clientX = evt.touches[0].clientX;
-                clientY = evt.touches[0].clientY;
             } else {
                 // For mouse events
                 clientX = evt.clientX || 0;
@@ -592,36 +587,7 @@
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
             if (isRestarting || isResetting || isPromptingName) return;
-        
-            const touchPos = getScaledCoordinates(e);
             
-            const volBtn = volumeButton;
-            const volBtnPadding = 30;
-            if (touchPos.x >= volBtn.x - volBtnPadding && touchPos.x <= volBtn.x + volBtn.width + volBtnPadding &&
-                touchPos.y >= volBtn.y - volBtnPadding && touchPos.y <= volBtn.y + volBtn.height + volBtnPadding) {
-                volBtn.isPressed = true;
-                return;
-            }
-        
-            const scoreBtn = scoreboardButton;
-            const scoreBtnPadding = 30;
-            if (menuState === 'loop' && 
-                touchPos.x >= scoreBtn.x - scoreBtnPadding && touchPos.x <= scoreBtn.x + scoreBtn.width + scoreBtnPadding &&
-                touchPos.y >= scoreBtn.y - scoreBtnPadding && touchPos.y <= scoreBtn.y + scoreBtn.height + scoreBtnPadding) {
-                scoreBtn.isPressed = true;
-                return;
-            }
-            
-            const restartBtnPadding = 20;
-            if ((gameOver || gameWon) && canRestart &&
-                touchPos.x >= restartButton.x - restartBtnPadding && 
-                touchPos.x <= restartButton.x + restartButton.width + restartBtnPadding &&
-                touchPos.y >= restartButton.y - restartBtnPadding && 
-                touchPos.y <= restartButton.y + restartButton.height + restartBtnPadding) {
-                restartButton.isPressed = true;
-                return;
-            }
-        
             touchStartTime = Date.now();
             isHoldingTouch = true;
         
@@ -633,23 +599,14 @@
             
             const touchPos = getScaledCoordinates(e);
 
-            if (volumeButton.isPressed) {
-                volumeButton.isPressed = false;
-                handleCanvasRelease(touchPos);
+            // First, check for button presses since they take priority.
+            if (handleCanvasRelease(touchPos)) {
+                isHoldingTouch = false;
+                touchStartTime = 0;
                 return;
             }
-            if (scoreboardButton.isPressed) {
-                scoreboardButton.isPressed = false;
-                handleCanvasRelease(touchPos);
-                return;
-            }
-            if (restartButton.isPressed) {
-                restartButton.isPressed = false;
-                handleCanvasRelease(touchPos);
-                return;
-            }
-
             isHoldingTouch = false;
+
             if (menuState === 'pre-menu') {
                 unlockAudio();
                 return;
@@ -662,7 +619,7 @@
             }
             
             const touchDuration = Date.now() - touchStartTime;
-            if (gameStarted && touchDuration > 0) {
+            if (gameStarted && touchDuration > 0) { 
                 if (touchDuration < 250) handleJump();
                 handleCrouchEnd();
             } else if (!gameStarted && menuState === 'loop' && !isScoreboardVisible) {
@@ -1412,13 +1369,17 @@
                 drawEndScreens();
             }
             
-            if (menuState === 'loop' || (canRestart && (gameOver || gameWon))) {
+            if (menuState === 'loop') {
                  drawScoreboardButton();
+            } else if (canRestart && (gameOver || gameWon) && !recordBroken) {
+                 drawRestartButton();
             }
             
             drawVolumeButton();
 
             if (isPromptingName && !isResetting) {
+                drawGameWorld(); // Draw the blurred/dimmed game world behind
+                drawEndScreens();
                 drawNamePrompt();
                 drawScoreboardButton();
             }
@@ -1511,18 +1472,13 @@
             ctx.fillText(scoreNumberText, canvas.width - 20, 40);
             
             ctx.fillStyle = scoreLabelColor;
-            ctx.font = 'bold 24px "Segoe UI"';
+            ctx.font = `bold ${24 * scoreLabelScale}px Amanojaku`;
             
             const scoreLabel = 'SCORE: ';
             const scoreLabelWidth = ctx.measureText(scoreLabel).width;
             const scoreX = canvas.width - 20 - scoreNumberWidth;
             
-            ctx.save();
-            ctx.translate(scoreX - (scoreLabelWidth / 2), 40);
-            ctx.scale(scoreLabelScale, scoreLabelScale);
-            ctx.translate(-(scoreX - (scoreLabelWidth / 2)), -40);
             ctx.fillText(scoreLabel, scoreX, 40);
-            ctx.restore();
 
             ctx.textAlign = 'left';
             if (teleportCharges > 0 && images.teleportLogo && images.teleportLogo.complete && images.teleportLogo.naturalWidth > 0) {
@@ -1557,7 +1513,6 @@
                     ctx.fillStyle = `rgba(0, 0, 0, ${1 * gameOverFade})`;
                     ctx.font = 'bold 20px "Segoe UI"';
                     ctx.fillText(isMobile ? 'Tap to restart' : 'press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
-                    drawRestartButton();
                 }
             }
             if (gameWon) {
@@ -1569,7 +1524,6 @@
                 if (canRestart) {
                     ctx.font = 'bold 20px "Segoe UI"';
                     ctx.fillText(isMobile ? 'Tap to restart' : 'press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
-                    drawRestartButton();
                 }
             }
         }
@@ -1892,3 +1846,4 @@
     </script>
 </body>
 </html>
+
