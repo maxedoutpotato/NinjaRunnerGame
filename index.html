@@ -14,24 +14,25 @@
 
     <!-- Firebase SDKs -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, query, orderBy, limit, addDoc, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, query, addDoc, doc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // Expose Firebase functions to the global scope so our script can use them.
         window.firebase = {
             initializeApp,
             getAuth,
             signInAnonymously,
+            signInWithCustomToken,
+            onAuthStateChanged,
             getFirestore,
             collection,
             onSnapshot,
             query,
-            orderBy,
-            limit,
             addDoc,
             doc,
-            deleteDoc
+            deleteDoc,
+            getDocs
         };
     </script>
 
@@ -203,7 +204,7 @@
         let pendingNamePrompt = false;
 
         // --- Firebase State ---
-        let db, auth;
+        let db, auth, appId;
         let highScores = [];
 
         // --- Bonus Spawn Tracking ---
@@ -387,8 +388,8 @@
 
             if (event.code === 'Space' || event.code === 'ArrowUp') {
                  if (menuState === 'pre-menu') {
-                     unlockAudio();
-                     return;
+                      unlockAudio();
+                      return;
                  }
                 if ((gameOver || gameWon) && canRestart) {
                     isRestarting = true;
@@ -480,15 +481,15 @@
                     scoreBtn.animationDirection = 1;
                     scoreBtn.targetScale = 1.2;
                  }
-             } else {
+              } else {
                  if (scoreBtn.isHovered) {
                     scoreBtn.isHovered = false;
                     if(!isScoreboardVisible) {
-                        scoreBtn.isAnimating = true;
-                        scoreBtn.animationDirection = -1;
+                         scoreBtn.isAnimating = true;
+                         scoreBtn.animationDirection = -1;
                     }
                  }
-             }
+              }
 
             if (!canRestart) {
                 canvas.style.cursor = 'default';
@@ -572,9 +573,9 @@
         });
 
          canvas.addEventListener('mouseup', (evt) => {
-             if(isPromptingName) return;
-             handleCanvasRelease(getScaledCoordinates(evt));
-        });
+              if(isPromptingName) return;
+              handleCanvasRelease(getScaledCoordinates(evt));
+         });
 
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
@@ -1183,12 +1184,12 @@
                 scoreBtn.frameTimer += deltaTime;
                 const scoreAnimData = animationStates.scroll;
                  if (scoreAnimData && scoreBtn.frameTimer >= scoreAnimData.frameDuration) {
-                     scoreBtn.frame += scoreBtn.animationDirection;
-                     scoreBtn.frameTimer = 0;
-                     if (scoreBtn.frame >= scoreAnimData.frames -1 || scoreBtn.frame <= 0) {
-                         scoreBtn.frame = Math.max(0, Math.min(scoreAnimData.frames - 1, scoreBtn.frame));
-                         scoreBtn.isAnimating = false;
-                     }
+                      scoreBtn.frame += scoreBtn.animationDirection;
+                      scoreBtn.frameTimer = 0;
+                      if (scoreBtn.frame >= scoreAnimData.frames -1 || scoreBtn.frame <= 0) {
+                           scoreBtn.frame = Math.max(0, Math.min(scoreAnimData.frames - 1, scoreBtn.frame));
+                           scoreBtn.isAnimating = false;
+                      }
                  }
             }
 
@@ -1678,18 +1679,18 @@
 
             if (highScores.length === 0) {
                 ctx.font = '20px "Segoe UI"';
-                ctx.fillText('Loading scores...', canvas.width / 2, canvas.height / 2);
+                ctx.fillText('No scores yet. Be the first!', canvas.width / 2, canvas.height / 2);
             } else {
                  highScores.forEach((score, index) => {
-                    const yPos = 130 + index * 25;
-                    ctx.font = 'bold 20px "Segoe UI"';
-                    ctx.textAlign = 'left';
-                    ctx.fillText(`${index + 1}. ${score.name}`, 180, yPos);
-                    
-                    ctx.font = '20px Amanojaku';
-                    ctx.textAlign = 'right';
-                    ctx.fillText(score.score, canvas.width - 180, yPos);
-                });
+                     const yPos = 130 + index * 25;
+                     ctx.font = 'bold 20px "Segoe UI"';
+                     ctx.textAlign = 'left';
+                     ctx.fillText(`${index + 1}. ${score.name}`, 180, yPos);
+                     
+                     ctx.font = '20px Amanojaku';
+                     ctx.textAlign = 'right';
+                     ctx.fillText(score.score, canvas.width - 180, yPos);
+                 });
             }
         }
 
@@ -1726,10 +1727,11 @@
 
         // --- Firebase Functions ---
         async function initializeFirebase() {
-             if (typeof __firebase_config === 'undefined') {
-                console.error("Firebase config is not available. Scoreboard will be disabled.");
+            if (typeof __firebase_config === 'undefined' || typeof __app_id === 'undefined') {
+                console.error("Firebase config or App ID is not available. Scoreboard will be disabled.");
                 return;
             }
+            appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
             const firebaseConfig = JSON.parse(__firebase_config);
 
             try {
@@ -1737,32 +1739,51 @@
                 auth = window.firebase.getAuth(app);
                 db = window.firebase.getFirestore(app);
 
-                await window.firebase.signInAnonymously(auth);
-                fetchHighScores();
+                window.firebase.onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        console.log("User is signed in:", user.uid);
+                        fetchHighScores();
+                    } else {
+                        console.log("User is signed out.");
+                    }
+                });
 
-            } catch(e) {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await window.firebase.signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await window.firebase.signInAnonymously(auth);
+                }
+
+            } catch (e) {
                 console.error("Firebase initialization failed:", e);
             }
         }
-        
+
         function fetchHighScores() {
-            if (!db) return;
-            const scoresCollection = window.firebase.collection(db, 'scores');
-            const q = window.firebase.query(scoresCollection, window.firebase.orderBy('score', 'desc'), window.firebase.limit(10));
+            if (!db || !appId) return;
+            const scoresCollectionRef = window.firebase.collection(db, `/artifacts/${appId}/public/data/scores`);
+            const q = window.firebase.query(scoresCollectionRef);
             
             window.firebase.onSnapshot(q, (snapshot) => {
-                highScores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                let scores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                scores.sort((a, b) => b.score - a.score);
+                highScores = scores.slice(0, 10);
             }, (error) => {
                 console.error("Error fetching high scores:", error);
             });
         }
-        
+
         async function saveScore() {
-            if (!recordBroken) {
-                 setTimeout(() => { canRestart = true; }, 2000);
-                 return;
+            // Check if the score is high enough to make the board
+            const isHighScore = highScores.length < 10 || score > highScores[highScores.length - 1].score;
+
+            if (!db || !isHighScore) {
+                setTimeout(() => { canRestart = true; }, 2000);
+                return;
             }
             
+            // Player achieved a new high score, prompt for name.
+            recordBroken = true; // This will be used for UI feedback
             isResetting = true;
             menuState = 'intro';
             menuFrame = 0;
@@ -1773,25 +1794,34 @@
         }
 
         async function submitHighScore(name) {
-            if (!db) return;
+            if (!db || !appId) return;
             
             isPromptingName = false;
             isScoreboardVisible = true;
             
-             try {
-                const scoresCollection = window.firebase.collection(db, 'scores');
-                await window.firebase.addDoc(scoresCollection, {
+            try {
+                const scoresCollectionRef = window.firebase.collection(db, `/artifacts/${appId}/public/data/scores`);
+                // Add the new score
+                await window.firebase.addDoc(scoresCollectionRef, {
                     name: name.trim(),
                     score: score,
                     timestamp: new Date()
                 });
+
+                // Enforce the top 10 limit by removing the lowest score(s) if we exceed 10
+                const allScoresSnapshot = await window.firebase.getDocs(scoresCollectionRef);
+                let allScores = allScoresSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 
-                if (highScores.length >= 10) {
-                    const lowestScoreDocId = highScores[highScores.length-1].id;
-                    await window.firebase.deleteDoc(window.firebase.doc(db, 'scores', lowestScoreDocId));
+                if (allScores.length > 10) {
+                    allScores.sort((a, b) => a.score - b.score); // Sort ascending to find the lowest
+                    const scoresToDelete = allScores.slice(0, allScores.length - 10);
+                    
+                    for (const scoreDoc of scoresToDelete) {
+                        await window.firebase.deleteDoc(window.firebase.doc(db, `/artifacts/${appId}/public/data/scores`, scoreDoc.id));
+                    }
                 }
             } catch (e) {
-                console.error("Error saving score:", e);
+                console.error("Error submitting high score:", e);
             }
         }
 
@@ -1844,4 +1874,3 @@
     </script>
 </body>
 </html>
-
