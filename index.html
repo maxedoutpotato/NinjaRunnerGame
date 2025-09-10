@@ -1727,12 +1727,22 @@
 
         // --- Firebase Functions ---
         async function initializeFirebase() {
-            if (typeof __firebase_config === 'undefined' || typeof __app_id === 'undefined') {
-                console.error("Firebase config or App ID is not available. Scoreboard will be disabled.");
+            if (typeof __firebase_config === 'undefined' || !__firebase_config || typeof __app_id === 'undefined' || !__app_id) {
+                console.error("Firebase config or App ID is not available. Scoreboard will be disabled for live data.");
+                // Populate with a dummy score for UI testing purposes
+                highScores = [{name: 'TEST', score: 500, id: 'dummy'}];
                 return;
             }
-            appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            const firebaseConfig = JSON.parse(__firebase_config);
+            
+            appId = __app_id;
+            let firebaseConfig;
+
+            try {
+                firebaseConfig = JSON.parse(__firebase_config);
+            } catch (e) {
+                console.error("Failed to parse Firebase config. Scoreboard will be disabled.", e);
+                return;
+            }
 
             try {
                 const app = window.firebase.initializeApp(firebaseConfig);
@@ -1777,7 +1787,7 @@
             // Check if the score is high enough to make the board
             const isHighScore = highScores.length < 10 || score > highScores[highScores.length - 1].score;
 
-            if (!db || !isHighScore) {
+            if (!isHighScore) {
                 setTimeout(() => { canRestart = true; }, 2000);
                 return;
             }
@@ -1874,3 +1884,4 @@
     </script>
 </body>
 </html>
+
