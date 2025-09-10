@@ -200,6 +200,7 @@
         let recordBroken = false;
         let scoreLabelColor = 'black';
         let scoreLabelScale = 1;
+        let pendingNamePrompt = false;
 
         // --- Firebase State ---
         let db, auth;
@@ -540,7 +541,7 @@
 
             const scoreBtn = scoreboardButton;
             const scoreBtnPadding = isMobile ? 30 : 0;
-            if (menuState === 'loop' && 
+            if ((menuState === 'loop' || (recordBroken && (gameOver || gameWon))) && 
                 pos.x >= scoreBtn.x - scoreBtnPadding && pos.x <= scoreBtn.x + scoreBtn.width + scoreBtnPadding &&
                 pos.y >= scoreBtn.y - scoreBtnPadding && pos.y <= scoreBtn.y + scoreBtn.height + scoreBtnPadding) {
                 isScoreboardVisible = true;
@@ -567,6 +568,7 @@
         canvas.addEventListener('mousedown', (evt) => {
             if(isPromptingName) return;
             const pos = getScaledCoordinates(evt);
+            if(!pos) return;
             const scoreBtn = scoreboardButton;
             if (menuState === 'loop' && pos.x >= scoreBtn.x && pos.x <= scoreBtn.x + scoreBtn.width &&
                 pos.y >= scoreBtn.y && pos.y <= scoreBtn.y + scoreBtn.height) {
@@ -598,6 +600,7 @@
             if (isRestarting || isResetting || isPromptingName) return;
             
             const touchPos = getScaledCoordinates(e);
+            if (!touchPos) return;
 
             // First, check for button presses since they take priority.
             if (handleCanvasRelease(touchPos)) {
@@ -1038,7 +1041,6 @@
                         sounds.track.pause();
                         sounds.track.currentTime = 0;
                         saveScore();
-                        setTimeout(() => { canRestart = true; }, 2000);
                     }
                 }
                 if (!obstacle.passed && obstacle.x + obstacle.width < player.x) {
@@ -1064,7 +1066,6 @@
                 inversionTarget = 1;
                 sounds.track.pause();
                 saveScore();
-                setTimeout(() => { canRestart = true; }, 2000);
             } else if (score >= 15000 && score < 19000) {
                  inversionTarget = 1;
             } else if (score >= 9000 && score < 12000) {
@@ -1127,7 +1128,12 @@
                 
                 if (menuState === 'intro' && menuFrame >= stateData.frames) {
                     if (isResetting) {
-                        fullGameReset();
+                        if(pendingNamePrompt) {
+                            isPromptingName = true;
+                            pendingNamePrompt = false;
+                        } else {
+                             fullGameReset();
+                        }
                     } else {
                         menuState = 'loop';
                         menuFrame = 0;
@@ -1350,11 +1356,13 @@
                 drawPreMenu();
             } else if (isResetting) {
                 drawGameOverStateForReset();
+                 drawMenu();
                 if (isPromptingName) {
                     drawNamePrompt();
                     drawScoreboardButton();
+                } else if(isScoreboardVisible) {
+                    drawScoreboard();
                 }
-                drawMenu();
             } else if (menuState === 'intro' || menuState === 'loop') {
                 drawMenu();
                 if (isScoreboardVisible) {
@@ -1369,16 +1377,18 @@
                 drawEndScreens();
             }
             
-            if (menuState === 'loop') {
+            if (menuState === 'loop' || (canRestart && (gameOver || gameWon) && !recordBroken)) {
                  drawScoreboardButton();
-            } else if (canRestart && (gameOver || gameWon) && !recordBroken) {
-                 drawRestartButton();
+            }
+            
+            if(canRestart && (gameOver || gameWon) && !recordBroken) {
+                drawRestartButton();
             }
             
             drawVolumeButton();
 
             if (isPromptingName && !isResetting) {
-                drawGameWorld(); // Draw the blurred/dimmed game world behind
+                drawGameWorld();
                 drawEndScreens();
                 drawNamePrompt();
                 drawScoreboardButton();
@@ -1761,25 +1771,26 @@
         }
         
         async function saveScore() {
-            if (!db || (highScores.length > 0 && highScores.length >= 10 && score <= highScores[highScores.length - 1].score)) {
-                return; 
+            if (!recordBroken) {
+                 setTimeout(() => { canRestart = true; }, 2000);
+                 return;
             }
-            isPromptingName = true;
-            highScoreName = '';
-            scoreboardButton.isAnimating = true;
-            scoreboardButton.animationDirection = 1;
-        }
-
-        async function submitHighScore(name) {
-            if (!db) return;
-            isPromptingName = false;
+            
             isResetting = true;
             menuState = 'intro';
             menuFrame = 0;
             menuFrameTimer = 0;
             canRestart = false;
+            pendingNamePrompt = true;
             sounds.gateClose.play();
+        }
 
+        async function submitHighScore(name) {
+            if (!db) return;
+            
+            isPromptingName = false;
+            isScoreboardVisible = true;
+            
              try {
                 const scoresCollection = window.firebase.collection(db, 'scores');
                 await window.firebase.addDoc(scoresCollection, {
