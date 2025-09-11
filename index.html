@@ -12,31 +12,6 @@
     <meta property="og:image" content="https://maxedoutpotato.github.io/NinjaRunnerGame/Assets/Preview/preview.png" />
     <meta property="og:description" content="A fast-paced 2D endless runner. Jump and crouch to dodge obstacles and collect bonuses in this challenging ninja adventure!" />
 
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, query, addDoc, doc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        
-        // Expose Firebase functions to the global scope so our script can use them.
-        window.firebase = {
-            initializeApp,
-            getAuth,
-            signInAnonymously,
-            signInWithCustomToken,
-            onAuthStateChanged,
-            getFirestore,
-            collection,
-            onSnapshot,
-            query,
-            addDoc,
-            doc,
-            deleteDoc,
-            getDocs
-        };
-    </script>
-
-
     <style>
         /* Define the custom font */
         @font-face {
@@ -195,17 +170,6 @@
         let audioUnlocked = false;
         let wantsToCrouch = false;
         let isMuted = false;
-        let isScoreboardVisible = false;
-        let isPromptingName = false;
-        let highScoreName = '';
-        let recordBroken = false;
-        let scoreLabelColor = 'black';
-        let scoreLabelScale = 1;
-        let pendingNamePrompt = false;
-
-        // --- Firebase State ---
-        let db, auth, appId;
-        let highScores = [];
 
         // --- Bonus Spawn Tracking ---
         let bonusSpawns = {
@@ -231,21 +195,10 @@
             x: 0, y: 0, width: 120, height: 120,
             frame: 0, frameTimer: 0, isHovered: false
         };
-        let scoreboardButton = {
-            x: 0, y: canvas.height, // Start off-screen
-            targetY: 0,
-            width: 120, height: 120,
-            frame: 0, frameTimer: 0, isHovered: false, isAnimating: false, animationDirection: 1,
-            scale: 1, targetScale: 1
-        };
         let volumeButton = {
             x: 0, y: 0, width: 60, height: 60,
             frame: 5, frameTimer: 0, isHovered: false, scale: 1, targetScale: 1,
             opacity: 0.4, targetOpacity: 0.4
-        };
-        let enterButton = {
-            x: 0, y: 0, width: 120, height: 50,
-            isHovered: false, isPressed: false
         };
 
         // --- Animation Data ---
@@ -375,20 +328,7 @@
         }
 
         document.addEventListener('keydown', function(event) {
-            if (isPromptingName) {
-                if (event.key === 'Enter') {
-                    if (highScoreName.length >= 3 && highScoreName.length <= 10) {
-                        submitHighScore(highScoreName);
-                    }
-                } else if (event.key === 'Backspace') {
-                    highScoreName = highScoreName.slice(0, -1);
-                } else if (highScoreName.length < 10 && event.key.length === 1 && event.key.match(/^[a-zA-Z0-9]*$/)) {
-                    highScoreName += event.key;
-                }
-                return; // Prevent other game input while typing name
-            }
-
-            if (isRestarting || isResetting || isScoreboardVisible) return;
+            if (isRestarting || isResetting) return;
 
             if (event.code === 'Space' || event.code === 'ArrowUp') {
                  if (menuState === 'pre-menu') {
@@ -436,14 +376,12 @@
             let clientX = 0;
             let clientY = 0;
             
-            // Handle different event types properly
             if (evt.type.startsWith('touch')) {
                  if (evt.changedTouches && evt.changedTouches[0]) {
                     clientX = evt.changedTouches[0].clientX;
                     clientY = evt.changedTouches[0].clientY;
                 }
             } else {
-                // For mouse events
                 clientX = evt.clientX || 0;
                 clientY = evt.clientY || 0;
             }
@@ -457,23 +395,6 @@
         canvas.addEventListener('mousemove', (evt) => {
             const mousePos = getScaledCoordinates(evt);
             if (!mousePos) return;
-
-            if (isPromptingName) {
-                const btn = enterButton;
-                if (mousePos.x >= btn.x && mousePos.x <= btn.x + btn.width &&
-                    mousePos.y >= btn.y && mousePos.y <= btn.y + btn.height) {
-                    if (!btn.isHovered) {
-                         btn.isHovered = true;
-                         canvas.style.cursor = 'pointer';
-                    }
-                } else {
-                    if (btn.isHovered) {
-                        btn.isHovered = false;
-                        canvas.style.cursor = 'default';
-                    }
-                }
-                return;
-            }
 
             const volBtn = volumeButton;
             const volBtnPadding = 10;
@@ -491,25 +412,6 @@
                     volBtn.targetOpacity = 0.4;
                 }
             }
-            
-            const scoreBtn = scoreboardButton;
-            if (menuState === 'loop' && !isScoreboardVisible && mousePos.x >= scoreBtn.x && mousePos.x <= scoreBtn.x + scoreBtn.width &&
-                mousePos.y >= scoreBtn.y && mousePos.y <= scoreBtn.y + scoreBtn.height) {
-                 if (!scoreBtn.isHovered) {
-                    scoreBtn.isHovered = true;
-                    scoreBtn.isAnimating = true;
-                    scoreBtn.animationDirection = 1;
-                    scoreBtn.targetScale = 1.2;
-                 }
-              } else {
-                 if (scoreBtn.isHovered) {
-                    scoreBtn.isHovered = false;
-                    if(!isScoreboardVisible) {
-                         scoreBtn.isAnimating = true;
-                         scoreBtn.animationDirection = -1;
-                    }
-                 }
-              }
 
             if (!canRestart) {
                 canvas.style.cursor = 'default';
@@ -535,18 +437,6 @@
         });
 
         function handleCanvasRelease(pos) {
-            if (isPromptingName) {
-                const btn = enterButton;
-                if (pos.x >= btn.x && pos.x <= btn.x + btn.width &&
-                    pos.y >= btn.y && pos.y <= btn.y + btn.height) {
-                    if (highScoreName.length >= 3 && highScoreName.length <= 10) {
-                        submitHighScore(highScoreName);
-                    }
-                    btn.isPressed = false;
-                    return true;
-                }
-            }
-
             const volBtn = volumeButton;
             const volBtnPadding = isMobile ? 30 : 10;
             if (pos.x >= volBtn.x - volBtnPadding && pos.x <= volBtn.x + volBtn.width + volBtnPadding &&
@@ -565,29 +455,10 @@
                 return true;
             }
 
-            if (isScoreboardVisible) {
-                isScoreboardVisible = false;
-                scoreboardButton.isAnimating = true;
-                scoreboardButton.animationDirection = -1;
-                scoreboardButton.isHovered = false;
-                return true;
-            }
-
-            const scoreBtn = scoreboardButton;
-            const scoreBtnPadding = isMobile ? 30 : 0;
-            if (menuState === 'loop' && 
-                pos.x >= scoreBtn.x - scoreBtnPadding && pos.x <= scoreBtn.x + scoreBtn.width + scoreBtnPadding &&
-                pos.y >= scoreBtn.y - scoreBtnPadding && pos.y <= scoreBtn.y + scoreBtn.height + scoreBtnPadding) {
-                isScoreboardVisible = true;
-                scoreBtn.isAnimating = true;
-                scoreBtn.animationDirection = 1;
-                scoreBtn.targetScale = 1.2;
-                return true;
-            }
-
+            const restartBtnPadding = isMobile ? 30 : 0;
             if (canRestart && (gameOver || gameWon) &&
-                 pos.x >= restartButton.x - scoreBtnPadding && pos.x <= restartButton.x + restartButton.width + scoreBtnPadding &&
-                 pos.y >= restartButton.y - scoreBtnPadding && pos.y <= restartButton.y + restartButton.height + scoreBtnPadding) {
+                 pos.x >= restartButton.x - restartBtnPadding && pos.x <= restartButton.x + restartButton.width + restartBtnPadding &&
+                 pos.y >= restartButton.y - restartBtnPadding && pos.y <= restartButton.y + restartButton.height + restartBtnPadding) {
                  isResetting = true;
                  menuState = 'intro';
                  menuFrame = 0;
@@ -600,37 +471,14 @@
             return false;
         }
 
-        canvas.addEventListener('mousedown', (evt) => {
-            if (isPromptingName) {
-                const mousePos = getScaledCoordinates(evt);
-                const btn = enterButton;
-                if (mousePos.x >= btn.x && mousePos.x <= btn.x + btn.width &&
-                    mousePos.y >= btn.y && mousePos.y <= btn.y + btn.height) {
-                    btn.isPressed = true;
-                }
-            }
-        });
+        canvas.addEventListener('mousedown', (evt) => {});
 
-         canvas.addEventListener('mouseup', (evt) => {
-             enterButton.isPressed = false;
-             if(isPromptingName) {
-                 handleCanvasRelease(getScaledCoordinates(evt));
-                 return;
-             }
+        canvas.addEventListener('mouseup', (evt) => {
               handleCanvasRelease(getScaledCoordinates(evt));
-         });
+        });
 
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            if (isPromptingName) {
-                const touchPos = getScaledCoordinates(e);
-                const btn = enterButton;
-                if (touchPos.x >= btn.x && touchPos.x <= btn.x + btn.width &&
-                    touchPos.y >= btn.y && touchPos.y <= btn.y + btn.height) {
-                    btn.isPressed = true;
-                }
-                return;
-            }
             if (isRestarting || isResetting) return;
             touchStartTime = Date.now();
             isHoldingTouch = true;
@@ -638,17 +486,10 @@
 
         canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
-            enterButton.isPressed = false;
-
             if (isRestarting || isResetting) return;
             
             const touchPos = getScaledCoordinates(e);
             if (!touchPos) return;
-            
-            if (isPromptingName) {
-                handleCanvasRelease(touchPos);
-                return;
-            }
 
             if (handleCanvasRelease(touchPos)) {
                 isHoldingTouch = false;
@@ -672,7 +513,7 @@
             if (gameStarted && touchDuration > 0) { 
                 if (touchDuration < 250) handleJump();
                 handleCrouchEnd();
-            } else if (!gameStarted && menuState === 'loop' && !isScoreboardVisible) {
+            } else if (!gameStarted && menuState === 'loop') {
                 menuState = 'outro';
                 menuFrame = 0;
                 menuFrameTimer = 0;
@@ -1030,10 +871,6 @@
             const oldScore = score;
             score += points;
 
-            if (!recordBroken && highScores.length > 0 && score > highScores[highScores.length - 1].score) {
-                recordBroken = true;
-            }
-
             if (Math.floor(score / 1000) > Math.floor(oldScore / 1000)) {
                 sounds.kabuki.play();
                 scoreBounceTimer = 0.5;
@@ -1087,7 +924,7 @@
                         sounds.fail.play();
                         sounds.track.pause();
                         sounds.track.currentTime = 0;
-                        saveScore();
+                        setTimeout(() => { canRestart = true; }, 2000);
                     }
                 }
                 if (!obstacle.passed && obstacle.x + obstacle.width < player.x) {
@@ -1112,7 +949,7 @@
                 gameWon = true;
                 inversionTarget = 1;
                 sounds.track.pause();
-                saveScore();
+                setTimeout(() => { canRestart = true; }, 2000);
             } else if (score >= 15000 && score < 19000) {
                  inversionTarget = 1;
             } else if (score >= 9000 && score < 12000) {
@@ -1144,9 +981,7 @@
             obstaclesArray = []; sceneryArray = []; effectsArray = []; floatingScores = [];
             scoreMilestone = 1; teleportCharges = 0; inversionAmount = 0; inversionTarget = 0;
             scoreBounceTimer = 0; teleportBounceTimer = 0;
-            isScoreboardVisible = false;
             wantsToCrouch = false;
-            recordBroken = false;
             bonusSpawns = {
                 teleportGold: { '3000': 0, '9000': 0, '15000': 0 },
                 bonusPoints: { '3000': 0, '6000': 0, '9000': 0, '12000': 0, '15000': 0, '19000': 0, '21000': 0 }
@@ -1175,12 +1010,7 @@
                 
                 if (menuState === 'intro' && menuFrame >= stateData.frames) {
                     if (isResetting) {
-                        if(pendingNamePrompt) {
-                            isPromptingName = true;
-                            pendingNamePrompt = false;
-                        } else {
-                             fullGameReset();
-                        }
+                        fullGameReset();
                     } else {
                         menuState = 'loop';
                         menuFrame = 0;
@@ -1227,31 +1057,6 @@
                     volBtn.frameTimer = 0;
                 }
             }
-            
-            const scoreBtn = scoreboardButton;
-            if (!scoreBtn.isHovered && !isScoreboardVisible) {
-                scoreBtn.targetScale = 1.0;
-            }
-            scoreBtn.scale += (scoreBtn.targetScale - scoreBtn.scale) * 0.2;
-
-            if (menuState === 'intro' || menuState === 'loop' || (isPromptingName && isResetting)) {
-                scoreBtn.y += (scoreBtn.targetY - scoreBtn.y) * 0.1;
-            } else {
-                 scoreBtn.y += (canvas.height + 50 - scoreBtn.y) * 0.1;
-            }
-            if (scoreBtn.isAnimating) {
-                scoreBtn.frameTimer += deltaTime;
-                const scoreAnimData = animationStates.scroll;
-                 if (scoreAnimData && scoreBtn.frameTimer >= scoreAnimData.frameDuration) {
-                      scoreBtn.frame += scoreBtn.animationDirection;
-                      scoreBtn.frameTimer = 0;
-                      if (scoreBtn.frame >= scoreAnimData.frames -1 || scoreBtn.frame <= 0) {
-                           scoreBtn.frame = Math.max(0, Math.min(scoreAnimData.frames - 1, scoreBtn.frame));
-                           scoreBtn.isAnimating = false;
-                      }
-                 }
-            }
-
 
             if (isRestarting) {
                 restartFadeAmount += 2 * fadeDirection * deltaTime;
@@ -1266,7 +1071,7 @@
                 return;
             }
             
-            if (isResetting || isPromptingName || isScoreboardVisible) {
+            if (isResetting) {
                  updateMenu(deltaTime);
                  return;
             }
@@ -1315,13 +1120,8 @@
                 }
             }
 
-            if (recordBroken) {
-                scoreLabelColor = 'red';
-                scoreLabelScale = 1.0 + Math.sin(lastTime / 150) * 0.1;
-            } else {
-                scoreLabelColor = 'black';
-                scoreLabelScale = 1.0;
-            }
+            const scoreLabelColor = 'black';
+            const scoreLabelScale = 1.0;
 
             if (scoreBounceTimer > 0) scoreBounceTimer -= deltaTime;
             if (teleportBounceTimer > 0) teleportBounceTimer -= deltaTime;
@@ -1403,18 +1203,9 @@
                 drawPreMenu();
             } else if (isResetting) {
                 drawGameOverStateForReset();
-                 drawMenu();
-                 drawScoreboardButton(); 
-                if (isPromptingName) {
-                    drawNamePrompt();
-                } else if(isScoreboardVisible) {
-                    drawScoreboard();
-                }
+                drawMenu();
             } else if (menuState === 'intro' || menuState === 'loop') {
                 drawMenu();
-                if (isScoreboardVisible) {
-                    drawScoreboard();
-                }
             } else {
                 drawGameWorld();
                 if (menuState === 'outro') {
@@ -1424,22 +1215,11 @@
                 drawEndScreens();
             }
             
-            if (menuState === 'loop' || (canRestart && (gameOver || gameWon) && !recordBroken)) {
-                 drawScoreboardButton();
-            }
-            
-            if(canRestart && (gameOver || gameWon) && !recordBroken) {
+            if(canRestart && (gameOver || gameWon)) {
                 drawRestartButton();
             }
             
             drawVolumeButton();
-
-            if (isPromptingName && !isResetting) {
-                drawGameWorld();
-                drawEndScreens();
-                drawNamePrompt();
-                drawScoreboardButton();
-            }
 
             if (isRestarting) {
                 ctx.fillStyle = `rgba(255, 255, 255, ${restartFadeAmount})`;
@@ -1516,6 +1296,7 @@
             const scoreNumberText = score.toString();
             
             let scoreFontSize = 30;
+            let scoreLabelScale = 1.0;
             if (scoreBounceTimer > 0) {
                 const bounceScale = 1 + Math.sin(scoreBounceTimer * (1/0.5) * Math.PI) * 0.5;
                 scoreFontSize *= bounceScale;
@@ -1528,7 +1309,7 @@
             const scoreNumberWidth = ctx.measureText(scoreNumberText).width;
             ctx.fillText(scoreNumberText, canvas.width - 20, 40);
             
-            ctx.fillStyle = scoreLabelColor;
+            ctx.fillStyle = 'black';
             ctx.font = `bold ${24 * scoreLabelScale}px Amanojaku`;
             
             const scoreLabel = 'SCORE: ';
@@ -1705,252 +1486,12 @@
             }
         }
 
-        function drawScoreboardButton() {
-             if (images.scroll && images.scroll.complete && images.scroll.naturalWidth > 0) {
-                const btn = scoreboardButton;
-                const stateData = animationStates.scroll;
-                const columns = stateData.columns;
-                const frameX = btn.frame % columns;
-                const frameY = Math.floor(btn.frame / columns);
-                const sourceX = frameX * stateData.spriteWidth;
-                const sourceY = frameY * stateData.spriteHeight;
-
-                const w = btn.width * btn.scale;
-                const h = btn.height * btn.scale;
-                const x = btn.x - (w - btn.width) / 2;
-                const y = btn.y - (h - btn.height) / 2;
-
-                ctx.drawImage(images.scroll, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, x, y, w, h);
-            }
-        }
-
-        function drawScoreboard() {
-            // This content is drawn on top of the open scroll
-            const scrollAnimData = animationStates.scroll;
-            if (scoreboardButton.frame < scrollAnimData.frames - 1) return; // Only draw when fully open
-
-            ctx.fillStyle = 'white';
-            ctx.font = '30px Amanojaku';
-            ctx.textAlign = 'center';
-            ctx.fillText('High Scores', canvas.width / 2, 90);
-
-            if (highScores.length === 0) {
-                ctx.font = '20px "Segoe UI"';
-                ctx.fillText('No scores yet. Be the first!', canvas.width / 2, canvas.height / 2);
-            } else {
-                 highScores.forEach((score, index) => {
-                     const yPos = 130 + index * 25;
-                     ctx.font = 'bold 20px "Segoe UI"';
-                     ctx.textAlign = 'left';
-                     ctx.fillText(`${index + 1}. ${score.name}`, 180, yPos);
-                     
-                     ctx.font = '20px Amanojaku';
-                     ctx.textAlign = 'right';
-                     ctx.fillText(score.score, canvas.width - 180, yPos);
-                 });
-            }
-        }
-        
-        function drawEnterButton() {
-            ctx.save();
-            const btn = enterButton;
-            const cornerRadius = 8;
-            
-            // Set styles based on state
-            if (btn.isPressed) {
-                ctx.fillStyle = '#4a5568'; // A darker gray for pressed state
-            } else if (btn.isHovered) {
-                ctx.fillStyle = '#a0aec0'; // A light gray for hover
-            } else {
-                ctx.fillStyle = '#718096'; // Default gray
-            }
-            
-            // Draw rounded rectangle for button body
-            ctx.beginPath();
-            ctx.moveTo(btn.x + cornerRadius, btn.y);
-            ctx.lineTo(btn.x + btn.width - cornerRadius, btn.y);
-            ctx.quadraticCurveTo(btn.x + btn.width, btn.y, btn.x + btn.width, btn.y + cornerRadius);
-            ctx.lineTo(btn.x + btn.width, btn.y + btn.height - cornerRadius);
-            ctx.quadraticCurveTo(btn.x + btn.width, btn.y + btn.height, btn.x + btn.width - cornerRadius, btn.y + btn.height);
-            ctx.lineTo(btn.x + cornerRadius, btn.y + btn.height);
-            ctx.quadraticCurveTo(btn.x, btn.y + btn.height, btn.x, btn.y + btn.height - cornerRadius);
-            ctx.lineTo(btn.x, btn.y + cornerRadius);
-            ctx.quadraticCurveTo(btn.x, btn.y, btn.x + cornerRadius, btn.y);
-            ctx.closePath();
-            ctx.fill();
-
-            // Draw text
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 20px "Segoe UI"';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('Enter', btn.x + btn.width / 2, btn.y + btn.height / 2);
-            
-            ctx.restore();
-        }
-
-        function drawNamePrompt() {
-            // The scroll is the background, this draws the content on top
-            const scrollAnimData = animationStates.scroll;
-            if (scoreboardButton.frame < scrollAnimData.frames - 1) return; // Only draw when fully open
-
-            ctx.fillStyle = 'black';
-            ctx.textAlign = 'center';
-            ctx.font = 'bold 20px "Segoe UI"';
-            ctx.fillText('High Score! Enter your name:', canvas.width / 2, 130);
-            
-            const inputWidth = 300;
-            const inputHeight = 40;
-            const inputX = canvas.width/2 - inputWidth/2;
-            const inputY = 155;
-
-            ctx.fillStyle = '#333';
-            ctx.fillRect(inputX, inputY, inputWidth, inputHeight);
-            
-            ctx.fillStyle = 'white';
-            ctx.font = '24px Amanojaku';
-            ctx.fillText(highScoreName, canvas.width / 2, inputY + inputHeight/2 + 5);
-            
-            ctx.fillStyle = 'black';
-            ctx.font = '14px "Segoe UI"';
-            ctx.fillText('(3-10 characters)', canvas.width / 2, inputY + inputHeight + 20);
-
-            drawEnterButton();
-        }
-
-        // --- Firebase Functions ---
-        async function initializeFirebase() {
-            if (typeof __firebase_config === 'undefined' || !__firebase_config || typeof __app_id === 'undefined' || !__app_id) {
-                console.error("Firebase config or App ID is not available. Scoreboard will be disabled for live data.");
-                // Populate with a dummy score for UI testing purposes
-                highScores = [{name: 'TEST', score: 500, id: 'dummy'}];
-                return;
-            }
-            
-            appId = __app_id;
-            let firebaseConfig;
-
-            try {
-                firebaseConfig = JSON.parse(__firebase_config);
-            } catch (e) {
-                console.error("Failed to parse Firebase config. Scoreboard will be disabled.", e);
-                return;
-            }
-
-            try {
-                const app = window.firebase.initializeApp(firebaseConfig);
-                auth = window.firebase.getAuth(app);
-                db = window.firebase.getFirestore(app);
-
-                window.firebase.onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        console.log("User is signed in:", user.uid);
-                        fetchHighScores();
-                    } else {
-                        console.log("User is signed out.");
-                    }
-                });
-
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await window.firebase.signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await window.firebase.signInAnonymously(auth);
-                }
-
-            } catch (e) {
-                console.error("Firebase initialization failed:", e);
-            }
-        }
-
-        function fetchHighScores() {
-            if (!db || !appId) return;
-            const scoresCollectionRef = window.firebase.collection(db, `/artifacts/${appId}/public/data/scores`);
-            const q = window.firebase.query(scoresCollectionRef);
-            
-            window.firebase.onSnapshot(q, (snapshot) => {
-                let scores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                scores.sort((a, b) => b.score - a.score);
-                highScores = scores.slice(0, 10);
-            }, (error) => {
-                console.error("Error fetching high scores:", error);
-            });
-        }
-
-        async function saveScore() {
-            // Check if the score is high enough to make the board
-            const isHighScore = highScores.length < 10 || score > highScores[highScores.length - 1].score;
-
-            if (!isHighScore) {
-                setTimeout(() => { canRestart = true; }, 2000);
-                return;
-            }
-            
-            // Player achieved a new high score, prompt for name.
-            recordBroken = true; // This will be used for UI feedback
-            isResetting = true;
-            menuState = 'intro';
-            menuFrame = 0;
-            menuFrameTimer = 0;
-            canRestart = false;
-            pendingNamePrompt = true;
-            sounds.gateClose.play();
-            scoreboardButton.isAnimating = true;
-            scoreboardButton.animationDirection = 1;
-        }
-
-        async function submitHighScore(name) {
-            isPromptingName = false;
-            isScoreboardVisible = true;
-            
-            if (!db || !appId) {
-                // Handle offline/testing case
-                const newScore = { name: name.trim(), score: score, id: 'temp-' + Date.now() };
-                highScores.push(newScore);
-                highScores.sort((a, b) => b.score - a.score);
-                highScores = highScores.slice(0, 10);
-                return;
-            }
-            
-            try {
-                const scoresCollectionRef = window.firebase.collection(db, `/artifacts/${appId}/public/data/scores`);
-                // Add the new score
-                await window.firebase.addDoc(scoresCollectionRef, {
-                    name: name.trim(),
-                    score: score,
-                    timestamp: new Date()
-                });
-
-                // Enforce the top 10 limit by removing the lowest score(s) if we exceed 10
-                const allScoresSnapshot = await window.firebase.getDocs(scoresCollectionRef);
-                let allScores = allScoresSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                
-                if (allScores.length > 10) {
-                    allScores.sort((a, b) => a.score - b.score); // Sort ascending to find the lowest
-                    const scoresToDelete = allScores.slice(0, allScores.length - 10);
-                    
-                    for (const scoreDoc of scoresToDelete) {
-                        await window.firebase.deleteDoc(window.firebase.doc(db, `/artifacts/${appId}/public/data/scores`, scoreDoc.id));
-                    }
-                }
-            } catch (e) {
-                console.error("Error submitting high score:", e);
-            }
-        }
-
         function repositionUIElements() {
             restartButton.x = canvas.width - 130;
             restartButton.y = canvas.height - 130;
 
-            scoreboardButton.x = canvas.width - 130;
-            scoreboardButton.targetY = canvas.height - 130;
-
             volumeButton.x = canvas.width / 2 - 30;
             volumeButton.y = canvas.height - 90;
-            
-            const boxHeight = 150;
-            const boxY = (canvas.height - boxHeight) / 2;
-            enterButton.x = canvas.width / 2 - enterButton.width / 2;
-            enterButton.y = boxY + boxHeight - enterButton.height - 25;
         }
 
         // --- Game Initialization ---
@@ -1980,7 +1521,6 @@
             repositionUIElements();
             window.addEventListener('resize', repositionUIElements);
 
-            initializeFirebase();
             lastTime = performance.now();
             mainLoop(lastTime);
         }
