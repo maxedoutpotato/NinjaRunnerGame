@@ -243,6 +243,10 @@
             frame: 5, frameTimer: 0, isHovered: false, scale: 1, targetScale: 1,
             opacity: 0.4, targetOpacity: 0.4
         };
+        let enterButton = {
+            x: 0, y: 0, width: 120, height: 50,
+            isHovered: false, isPressed: false
+        };
 
         // --- Animation Data ---
         const animationStates = {
@@ -451,9 +455,25 @@
         }
         
         canvas.addEventListener('mousemove', (evt) => {
-            if (isPromptingName) return;
             const mousePos = getScaledCoordinates(evt);
             if (!mousePos) return;
+
+            if (isPromptingName) {
+                const btn = enterButton;
+                if (mousePos.x >= btn.x && mousePos.x <= btn.x + btn.width &&
+                    mousePos.y >= btn.y && mousePos.y <= btn.y + btn.height) {
+                    if (!btn.isHovered) {
+                         btn.isHovered = true;
+                         canvas.style.cursor = 'pointer';
+                    }
+                } else {
+                    if (btn.isHovered) {
+                        btn.isHovered = false;
+                        canvas.style.cursor = 'default';
+                    }
+                }
+                return;
+            }
 
             const volBtn = volumeButton;
             const volBtnPadding = 10;
@@ -515,6 +535,18 @@
         });
 
         function handleCanvasRelease(pos) {
+            if (isPromptingName) {
+                const btn = enterButton;
+                if (pos.x >= btn.x && pos.x <= btn.x + btn.width &&
+                    pos.y >= btn.y && pos.y <= btn.y + btn.height) {
+                    if (highScoreName.length >= 3 && highScoreName.length <= 10) {
+                        submitHighScore(highScoreName);
+                    }
+                    btn.isPressed = false;
+                    return true;
+                }
+            }
+
             const volBtn = volumeButton;
             const volBtnPadding = isMobile ? 30 : 10;
             if (pos.x >= volBtn.x - volBtnPadding && pos.x <= volBtn.x + volBtn.width + volBtnPadding &&
@@ -569,27 +601,54 @@
         }
 
         canvas.addEventListener('mousedown', (evt) => {
-            if(isPromptingName) return;
+            if (isPromptingName) {
+                const mousePos = getScaledCoordinates(evt);
+                const btn = enterButton;
+                if (mousePos.x >= btn.x && mousePos.x <= btn.x + btn.width &&
+                    mousePos.y >= btn.y && mousePos.y <= btn.y + btn.height) {
+                    btn.isPressed = true;
+                }
+            }
         });
 
          canvas.addEventListener('mouseup', (evt) => {
-              if(isPromptingName) return;
+             enterButton.isPressed = false;
+             if(isPromptingName) {
+                 handleCanvasRelease(getScaledCoordinates(evt));
+                 return;
+             }
               handleCanvasRelease(getScaledCoordinates(evt));
          });
 
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            if (isRestarting || isResetting || isPromptingName) return;
+            if (isPromptingName) {
+                const touchPos = getScaledCoordinates(e);
+                const btn = enterButton;
+                if (touchPos.x >= btn.x && touchPos.x <= btn.x + btn.width &&
+                    touchPos.y >= btn.y && touchPos.y <= btn.y + btn.height) {
+                    btn.isPressed = true;
+                }
+                return;
+            }
+            if (isRestarting || isResetting) return;
             touchStartTime = Date.now();
             isHoldingTouch = true;
         }, { passive: false });
 
         canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
-            if (isRestarting || isResetting || isPromptingName) return;
+            enterButton.isPressed = false;
+
+            if (isRestarting || isResetting) return;
             
             const touchPos = getScaledCoordinates(e);
             if (!touchPos) return;
+            
+            if (isPromptingName) {
+                handleCanvasRelease(touchPos);
+                return;
+            }
 
             if (handleCanvasRelease(touchPos)) {
                 isHoldingTouch = false;
@@ -1345,9 +1404,9 @@
             } else if (isResetting) {
                 drawGameOverStateForReset();
                  drawMenu();
+                 drawScoreboardButton(); 
                 if (isPromptingName) {
                     drawNamePrompt();
-                    drawScoreboardButton();
                 } else if(isScoreboardVisible) {
                     drawScoreboard();
                 }
@@ -1666,12 +1725,10 @@
         }
 
         function drawScoreboard() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-            ctx.fillRect(150, 50, canvas.width - 300, canvas.height - 100);
-            ctx.strokeStyle = '#8B4513';
-            ctx.lineWidth = 4;
-            ctx.strokeRect(150, 50, canvas.width - 300, canvas.height - 100);
-            
+            // This content is drawn on top of the open scroll
+            const scrollAnimData = animationStates.scroll;
+            if (scoreboardButton.frame < scrollAnimData.frames - 1) return; // Only draw when fully open
+
             ctx.fillStyle = 'white';
             ctx.font = '30px Amanojaku';
             ctx.textAlign = 'center';
@@ -1693,36 +1750,72 @@
                  });
             }
         }
+        
+        function drawEnterButton() {
+            ctx.save();
+            const btn = enterButton;
+            const cornerRadius = 8;
+            
+            // Set styles based on state
+            if (btn.isPressed) {
+                ctx.fillStyle = '#4a5568'; // A darker gray for pressed state
+            } else if (btn.isHovered) {
+                ctx.fillStyle = '#a0aec0'; // A light gray for hover
+            } else {
+                ctx.fillStyle = '#718096'; // Default gray
+            }
+            
+            // Draw rounded rectangle for button body
+            ctx.beginPath();
+            ctx.moveTo(btn.x + cornerRadius, btn.y);
+            ctx.lineTo(btn.x + btn.width - cornerRadius, btn.y);
+            ctx.quadraticCurveTo(btn.x + btn.width, btn.y, btn.x + btn.width, btn.y + cornerRadius);
+            ctx.lineTo(btn.x + btn.width, btn.y + btn.height - cornerRadius);
+            ctx.quadraticCurveTo(btn.x + btn.width, btn.y + btn.height, btn.x + btn.width - cornerRadius, btn.y + btn.height);
+            ctx.lineTo(btn.x + cornerRadius, btn.y + btn.height);
+            ctx.quadraticCurveTo(btn.x, btn.y + btn.height, btn.x, btn.y + btn.height - cornerRadius);
+            ctx.lineTo(btn.x, btn.y + cornerRadius);
+            ctx.quadraticCurveTo(btn.x, btn.y, btn.x + cornerRadius, btn.y);
+            ctx.closePath();
+            ctx.fill();
+
+            // Draw text
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 20px "Segoe UI"';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Enter', btn.x + btn.width / 2, btn.y + btn.height / 2);
+            
+            ctx.restore();
+        }
 
         function drawNamePrompt() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            const boxWidth = 400;
-            const boxHeight = 150;
-            const boxX = (canvas.width - boxWidth) / 2;
-            const boxY = (canvas.height - boxHeight) / 2;
-            ctx.fillStyle = '#f0f0f0';
-            ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-            ctx.strokeStyle = 'black';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+            // The scroll is the background, this draws the content on top
+            const scrollAnimData = animationStates.scroll;
+            if (scoreboardButton.frame < scrollAnimData.frames - 1) return; // Only draw when fully open
 
             ctx.fillStyle = 'black';
             ctx.textAlign = 'center';
             ctx.font = 'bold 20px "Segoe UI"';
-            ctx.fillText('High Score! Enter your name:', canvas.width / 2, boxY + 40);
+            ctx.fillText('High Score! Enter your name:', canvas.width / 2, 130);
             
+            const inputWidth = 300;
+            const inputHeight = 40;
+            const inputX = canvas.width/2 - inputWidth/2;
+            const inputY = 155;
+
             ctx.fillStyle = '#333';
-            ctx.fillRect(boxX + 20, boxY + 55, boxWidth - 40, 40);
+            ctx.fillRect(inputX, inputY, inputWidth, inputHeight);
             
             ctx.fillStyle = 'white';
             ctx.font = '24px Amanojaku';
-            ctx.fillText(highScoreName, canvas.width / 2, boxY + 85);
+            ctx.fillText(highScoreName, canvas.width / 2, inputY + inputHeight/2 + 5);
             
             ctx.fillStyle = 'black';
             ctx.font = '14px "Segoe UI"';
-            ctx.fillText('(3-10 characters, press Enter to submit)', canvas.width / 2, boxY + 125);
+            ctx.fillText('(3-10 characters)', canvas.width / 2, inputY + inputHeight + 20);
+
+            drawEnterButton();
         }
 
         // --- Firebase Functions ---
@@ -1801,13 +1894,22 @@
             canRestart = false;
             pendingNamePrompt = true;
             sounds.gateClose.play();
+            scoreboardButton.isAnimating = true;
+            scoreboardButton.animationDirection = 1;
         }
 
         async function submitHighScore(name) {
-            if (!db || !appId) return;
-            
             isPromptingName = false;
             isScoreboardVisible = true;
+            
+            if (!db || !appId) {
+                // Handle offline/testing case
+                const newScore = { name: name.trim(), score: score, id: 'temp-' + Date.now() };
+                highScores.push(newScore);
+                highScores.sort((a, b) => b.score - a.score);
+                highScores = highScores.slice(0, 10);
+                return;
+            }
             
             try {
                 const scoresCollectionRef = window.firebase.collection(db, `/artifacts/${appId}/public/data/scores`);
@@ -1844,6 +1946,11 @@
 
             volumeButton.x = canvas.width / 2 - 30;
             volumeButton.y = canvas.height - 90;
+            
+            const boxHeight = 150;
+            const boxY = (canvas.height - boxHeight) / 2;
+            enterButton.x = canvas.width / 2 - enterButton.width / 2;
+            enterButton.y = boxY + boxHeight - enterButton.height - 25;
         }
 
         // --- Game Initialization ---
