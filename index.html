@@ -1073,6 +1073,16 @@
                 }
             }
 
+            if (menuState === 'pre-menu') {
+                preMenuFrameTimer += deltaTime;
+                const preMenuAnimation = isMobile ? animationStates.tap : animationStates.space;
+                if (preMenuAnimation && preMenuFrameTimer >= preMenuAnimation.frameDuration) {
+                    preMenuFrame = (preMenuFrame + 1) % preMenuAnimation.frames;
+                    preMenuFrameTimer = 0;
+                }
+                return;
+            }
+
             if (isRestarting) {
                 restartFadeAmount += 2 * fadeDirection * deltaTime;
                 if (restartFadeAmount >= 1 && fadeDirection === 1) {
@@ -1082,20 +1092,16 @@
                     isRestarting = false;
                     fadeDirection = 1;
                 }
-                // We still want the game world to update during the fade
             }
             
             if (isResetting || isRestartButtonAnimating) {
                  updateMenu(deltaTime);
-                 // We don't return here so the restart button animation can be handled below
             }
 
-            // If menu is active, update it, but not if we are resetting
-            if ((menuState === 'pre-menu' || menuState === 'intro' || menuState === 'loop' || menuState === 'outro') && !isResetting && !isRestartButtonAnimating) {
+            if ((menuState === 'intro' || menuState === 'loop' || menuState === 'outro') && !isResetting && !isRestartButtonAnimating) {
                 updateMenu(deltaTime);
             }
 
-            // If the game hasn't started yet, don't run game logic.
             if (!gameStarted) {
                 if (isRestartButtonAnimating) {
                      //fallthrough to button animation logic
@@ -1104,7 +1110,6 @@
                 }
             }
             
-            // This logic should run if the game is started OR if we are doing the restart button animation
             if (gameStarted) {
                 handleScenery(deltaTime);
                 handleObstacles(deltaTime);
@@ -1202,7 +1207,6 @@
                         if (isRestartButtonAnimating) {
                             restartButton.frame++;
                             if (restartButton.frame >= stateData.frames) {
-                                // Animation finished, now proceed to menu
                                 isRestartButtonAnimating = false;
                                 restartButton.frame = 0;
                                 isResetting = true;
@@ -1212,7 +1216,7 @@
                                 sounds.gateClose.play();
                                 if(sounds.gecko) sounds.gecko.pause();
                             }
-                        } else { // PC hover animation
+                        } else { 
                             restartButton.frame = (restartButton.frame + 1) % stateData.frames;
                         }
                     }
@@ -1225,29 +1229,33 @@
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            // Main drawing logic based on state
             if (menuState === 'pre-menu') {
                 drawPreMenu();
             } else if (isResetting || isRestartButtonAnimating) {
-                drawGameOverStateForReset();
-                if(!isRestartButtonAnimating) drawMenu();
+                drawGameWorld();
                 drawEndScreens();
+                if (!isRestartButtonAnimating) {
+                    drawMenu(); 
+                }
             } else if (menuState === 'intro' || menuState === 'loop') {
                 drawMenu();
-            } else {
+            } else { // This covers gameplay, starting, and ending
                 drawGameWorld();
+                drawUI();
+                drawEndScreens();
                 if (menuState === 'outro') {
                     drawMenu();
                 }
-                drawUI();
-                drawEndScreens();
             }
-            
-            if((canRestart && (gameOver || gameWon)) || isRestartButtonAnimating) {
+
+            // Overlay UI elements
+            if ((canRestart && (gameOver || gameWon)) || isRestartButtonAnimating) {
                 drawRestartButton();
             }
-            
             drawVolumeButton();
 
+            // Fade effect for quick restart
             if (isRestarting) {
                 ctx.fillStyle = `rgba(255, 255, 255, ${restartFadeAmount})`;
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1455,28 +1463,6 @@
                 if(menuState !== 'outro' && !isResetting) ctx.clearRect(0, 0, canvas.width, canvas.height);
                 ctx.drawImage(currentImage, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, 0, 0, canvas.width, canvas.height);
             }
-        }
-
-        function drawGameOverStateForReset() {
-             if (gameOver || gameWon) {
-                 ctx.save();
-                 ctx.filter = `invert(${inversionAmount * 100}%)`;
-                 ctx.fillStyle = '#f0f0f0';
-                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-                 if (gameOver) {
-                     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                     ctx.font = '70px Amanojaku';
-                     ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
-                 }
-                 if (gameWon) {
-                      ctx.fillStyle = 'rgba(255, 255, 255, 1)';
-                     ctx.fillRect(0, 0, canvas.width, canvas.height);
-                     ctx.fillStyle = 'black';
-                     ctx.font = '50px Amanojaku';
-                     ctx.fillText('YOU WIN', canvas.width / 2, canvas.height / 2 - 20);
-                 }
-                 ctx.restore();
-             }
         }
         
         function drawRotateCanvas() {
