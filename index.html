@@ -196,7 +196,7 @@
             frame: 0, frameTimer: 0, isHovered: false
         };
         let volumeButton = {
-            x: 0, y: 0, width: 60, height: 60,
+            x: 0, y: 0, width: 50, height: 50,
             frame: 5, frameTimer: 0, isHovered: false, scale: 1, targetScale: 1,
             opacity: 0.4, targetOpacity: 0.4
         };
@@ -1075,22 +1075,15 @@
                  updateMenu(deltaTime);
                  return;
             }
-            
-            if (menuState === 'pre-menu') {
-                preMenuFrameTimer += deltaTime;
-                const preMenuAnimation = isMobile ? animationStates.tap : animationStates.space;
-                if (preMenuAnimation && preMenuFrameTimer >= preMenuAnimation.frameDuration) {
-                    preMenuFrame = (preMenuFrame + 1) % preMenuAnimation.frames;
-                    preMenuFrameTimer = 0;
-                }
-                return; 
+
+            // If menu is active, update it
+            if (menuState === 'pre-menu' || menuState === 'intro' || menuState === 'loop' || menuState === 'outro') {
+                updateMenu(deltaTime);
             }
 
-            if (!gameStarted || menuState === 'outro') {
-                updateMenu(deltaTime);
-                if (!gameStarted || menuState !== 'inactive') {
-                    return;
-                }
+            // If the game hasn't started yet (i.e., we are in pre-menu, intro, or loop), don't run game logic.
+            if (!gameStarted) {
+                return;
             }
             
             handleScenery(deltaTime);
@@ -1490,8 +1483,8 @@
             restartButton.x = canvas.width - 130;
             restartButton.y = canvas.height - 130;
 
-            volumeButton.x = canvas.width / 2 - 30;
-            volumeButton.y = canvas.height - 90;
+            volumeButton.x = canvas.width / 2 - 25;
+            volumeButton.y = canvas.height - 70;
         }
 
         // --- Game Initialization ---
