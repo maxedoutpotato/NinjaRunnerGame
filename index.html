@@ -136,6 +136,7 @@
         let canRestart = false;
         let isRestarting = false; // For fade transition
         let isResetting = false; // For menu transition
+        let isRestartButtonAnimating = false;
         let restartFadeAmount = 0;
         let fadeDirection = 1;
         let groundX = 0;
@@ -262,7 +263,8 @@
             start: 'Audio/Gong.Start.mp3', end: 'Audio/Gong.End.mp3', jump: 'Audio/Jump.mp3',
             roll: 'Audio/Roll.mp3', woosh: 'Audio/Woosh.mp3', kabuki: 'Audio/Kabuki.mp3',
             track: 'Audio/Track.mp3', fail: 'Audio/Fail.mp3', bell: 'Audio/Bell.mp3',
-            teleport: 'Audio/Teleport.mp3', crouch: 'Audio/Crouch.mp3', eat: 'Audio/Eat.mp3', secret: 'Audio/Secret.mp3'
+            teleport: 'Audio/Teleport.mp3', crouch: 'Audio/Crouch.mp3', eat: 'Audio/Eat.mp3', secret: 'Audio/Secret.mp3',
+            bounce: 'Audio/Bounce.mp3'
         };
         let assetsLoaded = 0;
         const totalAssets = Object.keys(imageSources).length + Object.keys(soundSources).length;
@@ -328,7 +330,7 @@
         }
 
         document.addEventListener('keydown', function(event) {
-            if (isRestarting || isResetting) return;
+            if (isRestarting || isResetting || isRestartButtonAnimating) return;
 
             if (event.code === 'Space' || event.code === 'ArrowUp') {
                  if (menuState === 'pre-menu') {
@@ -336,6 +338,7 @@
                       return;
                  }
                 if ((gameOver || gameWon) && canRestart) {
+                    fullGameReset(true);
                     isRestarting = true;
                     canRestart = false;
                     return;
@@ -459,14 +462,25 @@
             if (canRestart && (gameOver || gameWon) &&
                  pos.x >= restartButton.x - restartBtnPadding && pos.x <= restartButton.x + restartButton.width + restartBtnPadding &&
                  pos.y >= restartButton.y - restartBtnPadding && pos.y <= restartButton.y + restartButton.height + restartBtnPadding) {
-                 isResetting = true;
-                 menuState = 'intro';
-                 menuFrame = 0;
-                 menuFrameTimer = 0;
-                 canRestart = false;
-                 sounds.gateClose.play();
-                 if(sounds.gecko) sounds.gecko.pause();
-                 return true;
+                 
+                 if (isMobile) {
+                    if (!isRestartButtonAnimating) {
+                        isRestartButtonAnimating = true;
+                        restartButton.frame = 0; 
+                        sounds.bounce.currentTime = 0;
+                        sounds.bounce.play();
+                        canRestart = false; 
+                    }
+                } else { // PC logic
+                    isResetting = true;
+                    menuState = 'intro';
+                    menuFrame = 0;
+                    menuFrameTimer = 0;
+                    canRestart = false;
+                    sounds.gateClose.play();
+                    if(sounds.gecko) sounds.gecko.pause();
+                }
+                return true;
             }
             return false;
         }
@@ -479,14 +493,14 @@
 
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            if (isRestarting || isResetting) return;
+            if (isRestarting || isResetting || isRestartButtonAnimating) return;
             touchStartTime = Date.now();
             isHoldingTouch = true;
         }, { passive: false });
 
         canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
-            if (isRestarting || isResetting) return;
+            if (isRestarting || isResetting || isRestartButtonAnimating) return;
             
             const touchPos = getScaledCoordinates(e);
             if (!touchPos) return;
@@ -504,6 +518,7 @@
             }
 
             if ((gameOver || gameWon) && canRestart) {
+                fullGameReset(true);
                 isRestarting = true;
                 canRestart = false;
                 return;
@@ -1062,131 +1077,149 @@
                 restartFadeAmount += 2 * fadeDirection * deltaTime;
                 if (restartFadeAmount >= 1 && fadeDirection === 1) {
                     fadeDirection = -1;
-                    fullGameReset(true);
                 }
                 if (restartFadeAmount <= 0 && fadeDirection === -1) {
                     isRestarting = false;
                     fadeDirection = 1;
                 }
-                return;
+                // We still want the game world to update during the fade
             }
             
-            if (isResetting) {
+            if (isResetting || isRestartButtonAnimating) {
                  updateMenu(deltaTime);
-                 return;
+                 // We don't return here so the restart button animation can be handled below
             }
 
-            // If menu is active, update it
-            if (menuState === 'pre-menu' || menuState === 'intro' || menuState === 'loop' || menuState === 'outro') {
+            // If menu is active, update it, but not if we are resetting
+            if ((menuState === 'pre-menu' || menuState === 'intro' || menuState === 'loop' || menuState === 'outro') && !isResetting && !isRestartButtonAnimating) {
                 updateMenu(deltaTime);
             }
 
-            // If the game hasn't started yet (i.e., we are in pre-menu, intro, or loop), don't run game logic.
+            // If the game hasn't started yet, don't run game logic.
             if (!gameStarted) {
-                return;
-            }
-            
-            handleScenery(deltaTime);
-            handleObstacles(deltaTime);
-            checkCollisionsAndScore();
-            
-            for (let i = floatingScores.length - 1; i >= 0; i--) {
-                floatingScores[i].update(deltaTime);
-                if (floatingScores[i].opacity <= 0) {
-                    floatingScores.splice(i, 1);
+                if (isRestartButtonAnimating) {
+                     //fallthrough to button animation logic
+                } else {
+                    return;
                 }
             }
-
-            if (gameOver || gameWon) {
-                if (gameSpeed > 0) gameSpeed -= 800 * deltaTime;
-                else gameSpeed = 0;
-                effectsArray.forEach(effect => { if(effect instanceof RunCloud) effect.startFading() });
-                if (gameOver && gameOverFade < 1) gameOverFade += 2 * deltaTime;
-            } else {
-                gameSpeed += speedIncreaseRate * 60 * deltaTime;
-            }
             
-            if (isHoldingTouch && gameStarted && !player.isJumping) {
-                const holdDuration = Date.now() - touchStartTime;
-                if (holdDuration > 200) {
-                    handleCrouchStart();
+            // This logic should run if the game is started OR if we are doing the restart button animation
+            if (gameStarted) {
+                handleScenery(deltaTime);
+                handleObstacles(deltaTime);
+                checkCollisionsAndScore();
+                
+                for (let i = floatingScores.length - 1; i >= 0; i--) {
+                    floatingScores[i].update(deltaTime);
+                    if (floatingScores[i].opacity <= 0) {
+                        floatingScores.splice(i, 1);
+                    }
                 }
+
+                if (gameOver || gameWon) {
+                    if (gameSpeed > 0) gameSpeed -= 800 * deltaTime;
+                    else gameSpeed = 0;
+                    effectsArray.forEach(effect => { if(effect instanceof RunCloud) effect.startFading() });
+                    if (gameOver && gameOverFade < 1) gameOverFade += 2 * deltaTime;
+                } else {
+                    if(!isRestarting) gameSpeed += speedIncreaseRate * 60 * deltaTime;
+                }
+                
+                if (isHoldingTouch && gameStarted && !player.isJumping) {
+                    const holdDuration = Date.now() - touchStartTime;
+                    if (holdDuration > 200) {
+                        handleCrouchStart();
+                    }
+                }
+
+                if (scoreBounceTimer > 0) scoreBounceTimer -= deltaTime;
+                if (teleportBounceTimer > 0) teleportBounceTimer -= deltaTime;
+                
+                const transitionSpeed = 1 / 4;
+                if (inversionAmount < inversionTarget) {
+                    inversionAmount = Math.min(inversionTarget, inversionAmount + transitionSpeed * deltaTime);
+                } else if (inversionAmount > inversionTarget) {
+                    inversionAmount = Math.max(inversionTarget, inversionAmount - transitionSpeed * deltaTime);
+                }
+                groundX -= gameSpeed * deltaTime;
+                bg1X -= gameSpeed * 0.1 * deltaTime;
+                bg2X -= gameSpeed * 0.03 * deltaTime;
+                grassX -= gameSpeed * GRASS_SPEED_MODIFIER * deltaTime;
+                
+                const bg1_scaledWidth = images.background1 ? images.background1.width * BG1_SCALE : 0;
+                const bg2_scaledWidth = images.background2 ? images.background2.width * BG2_SCALE : 0;
+                const grass_scaledWidth = images.grass ? images.grass.width * GRASS_SCALE : 0;
+
+                if (images.ground && groundX <= -images.ground.width) groundX += images.ground.width;
+                if (bg1_scaledWidth > 0 && bg1X <= -bg1_scaledWidth) bg1X += bg1_scaledWidth;
+                if (bg2_scaledWidth > 0 && bg2X <= -bg2_scaledWidth) bg2X += bg2_scaledWidth;
+                if (grass_scaledWidth > 0 && grassX <= -grass_scaledWidth) grassX += grass_scaledWidth;
+                
+                if (player.isJumping) {
+                    player.velocityY += GRAVITY * deltaTime;
+                    player.y += player.velocityY * deltaTime;
+                }
+                if (player.y > PLAYER_GROUND_LEVEL) {
+                    player.y = PLAYER_GROUND_LEVEL;
+                    if(player.isJumping) {
+                        effectsArray.forEach(effect => { if(effect instanceof RunCloud) effect.activate() });
+                    }
+                    player.isJumping = false;
+                    player.velocityY = 0;
+                    if (wantsToCrouch) {
+                        handleCrouchStart();
+                    } else if (!player.isCrouching && !gameOver) { 
+                        player.state = 'run'; 
+                    }
+                }
+                player.frameTimer += deltaTime;
+                const stateData = animationStates[player.state];
+                if (stateData) {
+                    let dynamicFrameDuration = stateData.frameDuration;
+                    if (player.state === 'run' || player.state === 'crouch') {
+                        dynamicFrameDuration = Math.max(0.02, stateData.frameDuration - (gameSpeed / 10000));
+                    }
+                    if (player.frameTimer >= dynamicFrameDuration) {
+                        if (player.state === 'fall') {
+                            if (player.frame < stateData.frames - 1) player.frame++;
+                        } else {
+                            player.frame = (player.frame + 1) % stateData.frames;
+                        }
+                        player.frameTimer = 0;
+                    }
+                }
+                effectsArray.forEach(effect => effect.update(deltaTime));
+                effectsArray = effectsArray.filter(effect => !effect.markedForDeletion);
             }
 
-            const scoreLabelColor = 'black';
-            const scoreLabelScale = 1.0;
-
-            if (scoreBounceTimer > 0) scoreBounceTimer -= deltaTime;
-            if (teleportBounceTimer > 0) teleportBounceTimer -= deltaTime;
-            
-            if (canRestart) {
+            if (canRestart || isRestartButtonAnimating) {
                 restartButton.frameTimer += deltaTime;
-                if (restartButton.isHovered && !isMobile) {
+                if ((restartButton.isHovered && !isMobile) || isRestartButtonAnimating) {
                     const stateData = animationStates.button;
                     if (stateData && restartButton.frameTimer >= stateData.frameDuration) {
-                        restartButton.frame = (restartButton.frame + 1) % stateData.frames;
                         restartButton.frameTimer = 0;
+                        if (isRestartButtonAnimating) {
+                            restartButton.frame++;
+                            if (restartButton.frame >= stateData.frames) {
+                                // Animation finished, now proceed to menu
+                                isRestartButtonAnimating = false;
+                                restartButton.frame = 0;
+                                isResetting = true;
+                                menuState = 'intro';
+                                menuFrame = 0;
+                                menuFrameTimer = 0;
+                                sounds.gateClose.play();
+                                if(sounds.gecko) sounds.gecko.pause();
+                            }
+                        } else { // PC hover animation
+                            restartButton.frame = (restartButton.frame + 1) % stateData.frames;
+                        }
                     }
                 } else {
                     restartButton.frame = 0;
                 }
             }
-
-            const transitionSpeed = 1 / 4;
-            if (inversionAmount < inversionTarget) {
-                inversionAmount = Math.min(inversionTarget, inversionAmount + transitionSpeed * deltaTime);
-            } else if (inversionAmount > inversionTarget) {
-                inversionAmount = Math.max(inversionTarget, inversionAmount - transitionSpeed * deltaTime);
-            }
-            groundX -= gameSpeed * deltaTime;
-            bg1X -= gameSpeed * 0.1 * deltaTime;
-            bg2X -= gameSpeed * 0.03 * deltaTime;
-            grassX -= gameSpeed * GRASS_SPEED_MODIFIER * deltaTime;
-            
-            const bg1_scaledWidth = images.background1 ? images.background1.width * BG1_SCALE : 0;
-            const bg2_scaledWidth = images.background2 ? images.background2.width * BG2_SCALE : 0;
-            const grass_scaledWidth = images.grass ? images.grass.width * GRASS_SCALE : 0;
-
-            if (images.ground && groundX <= -images.ground.width) groundX += images.ground.width;
-            if (bg1_scaledWidth > 0 && bg1X <= -bg1_scaledWidth) bg1X += bg1_scaledWidth;
-            if (bg2_scaledWidth > 0 && bg2X <= -bg2_scaledWidth) bg2X += bg2_scaledWidth;
-            if (grass_scaledWidth > 0 && grassX <= -grass_scaledWidth) grassX += grass_scaledWidth;
-            
-            if (player.isJumping) {
-                player.velocityY += GRAVITY * deltaTime;
-                player.y += player.velocityY * deltaTime;
-            }
-            if (player.y > PLAYER_GROUND_LEVEL) {
-                player.y = PLAYER_GROUND_LEVEL;
-                if(player.isJumping) {
-                    effectsArray.forEach(effect => { if(effect instanceof RunCloud) effect.activate() });
-                }
-                player.isJumping = false;
-                player.velocityY = 0;
-                if (wantsToCrouch) {
-                    handleCrouchStart();
-                } else if (!player.isCrouching && !gameOver) { 
-                    player.state = 'run'; 
-                }
-            }
-            player.frameTimer += deltaTime;
-            const stateData = animationStates[player.state];
-            if (stateData) {
-                let dynamicFrameDuration = stateData.frameDuration;
-                if (player.state === 'run' || player.state === 'crouch') {
-                    dynamicFrameDuration = Math.max(0.02, stateData.frameDuration - (gameSpeed / 10000));
-                }
-                if (player.frameTimer >= dynamicFrameDuration) {
-                    if (player.state === 'fall') {
-                        if (player.frame < stateData.frames - 1) player.frame++;
-                    } else {
-                        player.frame = (player.frame + 1) % stateData.frames;
-                    }
-                    player.frameTimer = 0;
-                }
-            }
-            effectsArray.forEach(effect => effect.update(deltaTime));
-            effectsArray = effectsArray.filter(effect => !effect.markedForDeletion);
         }
         
         function draw() {
@@ -1194,9 +1227,10 @@
 
             if (menuState === 'pre-menu') {
                 drawPreMenu();
-            } else if (isResetting) {
+            } else if (isResetting || isRestartButtonAnimating) {
                 drawGameOverStateForReset();
-                drawMenu();
+                if(!isRestartButtonAnimating) drawMenu();
+                drawEndScreens();
             } else if (menuState === 'intro' || menuState === 'loop') {
                 drawMenu();
             } else {
@@ -1208,7 +1242,7 @@
                 drawEndScreens();
             }
             
-            if(canRestart && (gameOver || gameWon)) {
+            if((canRestart && (gameOver || gameWon)) || isRestartButtonAnimating) {
                 drawRestartButton();
             }
             
