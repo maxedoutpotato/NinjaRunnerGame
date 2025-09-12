@@ -12,6 +12,14 @@
     <meta property="og:image" content="https://maxedoutpotato.github.io/NinjaRunnerGame/Assets/Preview/preview.png" />
     <meta property="og:description" content="A fast-paced 2D endless runner. Jump and crouch to dodge obstacles and collect bonuses in this challenging ninja adventure!" />
 
+    <!-- SEO and Social Sharing Meta Tags -->
+    <meta name="keywords" content="ninja, runner, endless runner, javascript game, html5 game, canvas game, indie game, 2d game, gamedev">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Ninja Runner Game">
+    <meta name="twitter:description" content="A fast-paced 2D endless runner. Jump and crouch to dodge obstacles and collect bonuses!">
+    <meta name="twitter:image" content="https://maxedoutpotato.github.io/NinjaRunnerGame/Assets/Preview/preview.png">
+
+
     <style>
         /* Define the custom font */
         @font-face {
@@ -209,6 +217,10 @@
             width: 120, height: 120,
             frame: 0, frameTimer: 0, isAnimating: false, animationDirection: 1, scale: 1
         };
+        let shareButton = {
+            x: 0, y: 0, width: 80, height: 80,
+            frame: 0, frameTimer: 0, scale: 1
+        };
 
         // --- Animation Data ---
         const animationStates = {
@@ -228,7 +240,8 @@
             tap: { frames: 28, columns: 4, frameDuration: 0.08, spriteWidth: 500, spriteHeight: 250 },
             space: { frames: 28, columns: 4, frameDuration: 0.08, spriteWidth: 500, spriteHeight: 250 },
             scroll: { frames: 14, columns: 4, frameDuration: 0.05, spriteWidth: 120, spriteHeight: 120 },
-            volume: { frames: 6, columns: 3, frameDuration: 0.05, spriteWidth: 100, spriteHeight: 100 }
+            volume: { frames: 6, columns: 3, frameDuration: 0.05, spriteWidth: 100, spriteHeight: 100 },
+            share: { frames: 9, columns: 3, frameDuration: 0.08, spriteWidth: 100, spriteHeight: 100 }
         };
 
         // --- Asset Loading ---
@@ -262,7 +275,8 @@
             apple: 'Assets/Obstacles/Apple.png',
             carrot: 'Assets/Obstacles/Carrot.png',
             scroll: 'Assets/Menu/Scroll.png',
-            volume: 'Assets/Menu/Volume.png'
+            volume: 'Assets/Menu/Volume.png',
+            share: 'Assets/Menu/Share.png'
         };
         const soundSources = {
             intro: 'Audio/Intro.mp3',
@@ -300,6 +314,15 @@
                 sounds[key].addEventListener('canplaythrough', () => assetLoadCallback('success', src), { once: true });
                 sounds[key].onerror = () => assetLoadCallback('error', src);
             }
+        }
+        
+        // --- Social Sharing ---
+        function shareOnTwitter(score) {
+            const text = `I just scored ${score} in Ninja Runner! Can you beat my high score?`;
+            const url = 'https://maxedoutpotato.github.io/NinjaRunnerGame/';
+            const hashtags = 'NinjaRunnerGame,IndieGame,WebGame,JavaScript,GameDev';
+            const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}&hashtags=${hashtags}`;
+            window.open(twitterUrl, '_blank');
         }
 
         // --- Input Handling ---
@@ -470,6 +493,15 @@
                     }, 150);
                 }
                 return true;
+            }
+
+            const shareBtn = shareButton;
+            const shareBtnPadding = isMobile ? 20 : 10;
+            if ((gameOver || gameWon) && canRestart &&
+                pos.x >= shareBtn.x - shareBtnPadding && pos.x <= shareBtn.x + shareBtn.width + shareBtnPadding &&
+                pos.y >= shareBtn.y - shareBtnPadding && pos.y <= shareBtn.y + shareBtn.height + shareBtnPadding) {
+                shareOnTwitter(score);
+                return true; 
             }
 
             const restartBtnPadding = isMobile ? 30 : 0;
@@ -1008,8 +1040,6 @@
             }
         }
 
-        // --- FIX: Refactored fullGameReset to only reset variables. ---
-        // This function now has one clear job, making the game state easier to manage.
         function fullGameReset() {
             isResetting = false;
             gameOver = false; gameWon = false; gameSpeed = 300; score = 0;
@@ -1041,7 +1071,6 @@
                 if (menuState === 'intro' && menuFrame >= stateData.frames) {
                     showPreMenuBehindIntro = false;
                     if (isResetting) {
-                        // --- FIX: Logic for returning to menu is now explicit here. ---
                         fullGameReset();
                         gameStarted = false;
                         menuState = 'loop';
@@ -1137,7 +1166,6 @@
                 restartFadeAmount += 2 * fadeDirection * deltaTime;
                 if (restartFadeAmount >= 1 && fadeDirection === 1) {
                     fadeDirection = -1;
-                    // --- FIX: Logic for restarting the game is now explicit here. ---
                     fullGameReset();
                     startGame();
                 }
@@ -1153,6 +1181,20 @@
 
             if ((menuState === 'intro' || menuState === 'loop' || menuState === 'outro') && !isResetting && !isRestartButtonAnimating) {
                 updateMenu(deltaTime);
+            }
+
+            if ((gameOver || gameWon) && canRestart) {
+                const pulse = 1 + Math.sin(lastTime / 300) * 0.1;
+                shareButton.scale = pulse;
+
+                shareButton.frameTimer += deltaTime;
+                const shareAnimData = animationStates.share;
+                if (shareAnimData && shareButton.frameTimer >= shareAnimData.frameDuration) {
+                    shareButton.frame = (shareButton.frame + 1) % shareAnimData.frames;
+                    shareButton.frameTimer = 0;
+                }
+            } else {
+                shareButton.scale = 1;
             }
 
             if (!gameStarted) {
@@ -1379,7 +1421,6 @@
              
              floatingScores.forEach(fs => fs.draw());
              
-            // Draw UI and End Screens inside the inversion filter so they are also affected.
             if (gameStarted) {
                 drawUI();
                 drawEndScreens();
@@ -1453,6 +1494,7 @@
                     ctx.fillStyle = `rgba(255, 255, 255, ${1 * gameOverFade})`;
                     ctx.font = 'bold 20px "Segoe UI"';
                     ctx.fillText(isMobile ? 'Tap to restart' : 'press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
+                    drawShareButton();
                 }
             }
             if (gameWon) {
@@ -1464,6 +1506,7 @@
                 if (canRestart) {
                     ctx.font = 'bold 20px "Segoe UI"';
                     ctx.fillText(isMobile ? 'Tap to restart' : 'press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
+                    drawShareButton();
                 }
             }
         }
@@ -1491,6 +1534,25 @@
                 }
 
                 ctx.drawImage(images.button, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, drawX, drawY, drawWidth, drawHeight);
+            }
+        }
+        
+        function drawShareButton() {
+            if (images.share && images.share.complete && images.share.naturalWidth > 0) {
+                const btn = shareButton;
+                const stateData = animationStates.share;
+                const columns = stateData.columns;
+                const frameX = btn.frame % columns;
+                const frameY = Math.floor(btn.frame / columns);
+                const sourceX = frameX * stateData.spriteWidth;
+                const sourceY = frameY * stateData.spriteHeight;
+
+                const w = btn.width * btn.scale;
+                const h = btn.height * btn.scale;
+                const x = btn.x - (w - btn.width) / 2;
+                const y = btn.y - (h - btn.height) / 2;
+                
+                ctx.drawImage(images.share, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, x, y, w, h);
             }
         }
 
@@ -1609,6 +1671,9 @@
 
             scrollButton.x = canvas.width - 130;
             scrollButton.targetY = canvas.height - 130;
+
+            shareButton.x = canvas.width / 2 + 200;
+            shareButton.y = canvas.height / 2 - 40;
 
             if (menuState === 'pre-menu') {
                 scrollButton.y = canvas.height + 50;
