@@ -459,7 +459,7 @@
         });
 
         function handleCanvasRelease(pos) {
-             if (uiState.isInfoBoxVisible) {
+            if (uiState.isInfoBoxVisible) {
                 uiState.isInfoBoxVisible = false;
                 scrollButton.isAnimating = true;
                 scrollButton.animationDirection = -1;
@@ -520,6 +520,17 @@
                 return true;
             }
 
+            // If no other UI was hit, and we're in the menu, start the game.
+            if (!gameState.gameStarted && uiState.menuState === 'loop') {
+                uiState.menuState = 'outro';
+                uiState.menuFrame = 0;
+                timers.menuFrameTimer = 0;
+                sounds.intro.pause();
+                sounds.intro.currentTime = 0;
+                startGame();
+                return true; // Action taken
+            }
+
             return false;
         }
 
@@ -567,13 +578,6 @@
             if (gameState.gameStarted && touchDuration > 0) { 
                 if (touchDuration < 250) handleJump();
                 handleCrouchEnd();
-            } else if (!gameState.gameStarted && uiState.menuState === 'loop') {
-                uiState.menuState = 'outro';
-                uiState.menuFrame = 0;
-                timers.menuFrameTimer = 0;
-                sounds.intro.pause();
-                sounds.intro.currentTime = 0;
-                startGame();
             }
             timers.touchStartTime = 0;
         }, { passive: false });
