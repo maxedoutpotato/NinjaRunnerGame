@@ -1286,7 +1286,6 @@
                 drawPreMenu();
             } else if (isResetting || isRestartButtonAnimating) {
                 drawGameWorld(); 
-                drawEndScreens(); 
                 if (!isRestartButtonAnimating) {
                     drawMenu(); 
                 }
@@ -1297,8 +1296,6 @@
                 drawMenu();
             } else { 
                 drawGameWorld();
-                drawUI();
-                drawEndScreens();
                 if (menuState === 'outro') {
                     drawMenu(); 
                 }
@@ -1382,6 +1379,12 @@
              
              floatingScores.forEach(fs => fs.draw());
              
+            // Draw UI and End Screens inside the inversion filter so they are also affected.
+            if (gameStarted) {
+                drawUI();
+                drawEndScreens();
+            }
+
              ctx.restore();
         }
 
@@ -1442,10 +1445,12 @@
         function drawEndScreens() {
             if (gameOver) {
                 ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * gameOverFade})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = `rgba(255, 255, 255, ${0.7 * gameOverFade})`;
                 ctx.font = '70px Amanojaku';
                 ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
                 if (canRestart) {
-                    ctx.fillStyle = `rgba(0, 0, 0, ${1 * gameOverFade})`;
+                    ctx.fillStyle = `rgba(255, 255, 255, ${1 * gameOverFade})`;
                     ctx.font = 'bold 20px "Segoe UI"';
                     ctx.fillText(isMobile ? 'Tap to restart' : 'press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
                 }
@@ -1647,3 +1652,4 @@
     </script>
 </body>
 </html>
+
