@@ -128,7 +128,6 @@
         ];
 
         // --- Game State Management ---
-        // By grouping related variables into objects, the code becomes cleaner and easier to manage.
         const gameState = {
             gameStarted: false,
             gameOver: false,
@@ -153,7 +152,7 @@
         };
 
         const uiState = {
-            menuState: 'pre-menu', // 'pre-menu', 'intro', 'loop', 'outro', 'inactive'
+            menuState: 'pre-menu',
             menuFrame: 0,
             preMenuFrame: 0,
             rotateFrame: 0,
@@ -350,7 +349,7 @@
         }
 
         document.addEventListener('keydown', function(event) {
-            if (gameState.isRestarting || gameState.isResetting || gameState.isRestartButtonAnimating) return;
+            if (gameState.isRestarting || gameState.isResetting || gameState.isRestartButtonAnimating || uiState.isInfoBoxVisible) return;
 
             if (event.code === 'Space' || event.code === 'ArrowUp') {
                  if (uiState.menuState === 'pre-menu') {
@@ -519,6 +518,11 @@
                 scrollButton.animationDirection = 1;
                 return true;
             }
+            
+            if (uiState.menuState === 'pre-menu') {
+                unlockAudio();
+                return true;
+            }
 
             // If no other UI was hit, and we're in the menu, start the game.
             if (!gameState.gameStarted && uiState.menuState === 'loop') {
@@ -562,11 +566,6 @@
                 return;
             }
             inputState.isHoldingTouch = false;
-
-            if (uiState.menuState === 'pre-menu') {
-                unlockAudio();
-                return;
-            }
 
             if ((gameState.gameOver || gameState.gameWon) && gameState.canRestart) {
                 gameState.isRestarting = true;
