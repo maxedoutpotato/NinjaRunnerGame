@@ -171,6 +171,7 @@
         let audioUnlocked = false;
         let wantsToCrouch = false;
         let isMuted = false;
+        let showPreMenuBehindIntro = false;
 
         // --- Bonus Spawn Tracking ---
         let bonusSpawns = {
@@ -338,7 +339,6 @@
                       return;
                  }
                 if ((gameOver || gameWon) && canRestart) {
-                    fullGameReset(true);
                     isRestarting = true;
                     canRestart = false;
                     return;
@@ -467,8 +467,8 @@
                     if (!isRestartButtonAnimating) {
                         isRestartButtonAnimating = true;
                         restartButton.frame = 0; 
-                        sounds.bounce.currentTime = 0;
-                        sounds.bounce.play();
+                        sounds.gecko.currentTime = 0;
+                        sounds.gecko.play();
                         canRestart = false; 
                     }
                 } else { // PC logic
@@ -518,7 +518,6 @@
             }
 
             if ((gameOver || gameWon) && canRestart) {
-                fullGameReset(true);
                 isRestarting = true;
                 canRestart = false;
                 return;
@@ -553,6 +552,7 @@
                 }).catch(e => {});
             }
             audioUnlocked = true;
+            showPreMenuBehindIntro = true;
             
             setTimeout(() => {
                 menuState = 'intro'; 
@@ -1024,6 +1024,7 @@
                 menuFrameTimer = 0;
                 
                 if (menuState === 'intro' && menuFrame >= stateData.frames) {
+                    showPreMenuBehindIntro = false;
                     if (isResetting) {
                         fullGameReset();
                     } else {
@@ -1087,6 +1088,7 @@
                 restartFadeAmount += 2 * fadeDirection * deltaTime;
                 if (restartFadeAmount >= 1 && fadeDirection === 1) {
                     fadeDirection = -1;
+                    fullGameReset(true); 
                 }
                 if (restartFadeAmount <= 0 && fadeDirection === -1) {
                     isRestarting = false;
@@ -1229,33 +1231,33 @@
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Main drawing logic based on state
             if (menuState === 'pre-menu') {
                 drawPreMenu();
             } else if (isResetting || isRestartButtonAnimating) {
-                drawGameWorld();
-                drawEndScreens();
+                drawGameWorld(); // Draw the last frame of the game
+                drawEndScreens(); // Draw GAME OVER text
                 if (!isRestartButtonAnimating) {
-                    drawMenu(); 
+                    drawMenu(); // Draw the closing gate on top
                 }
             } else if (menuState === 'intro' || menuState === 'loop') {
+                if (showPreMenuBehindIntro) {
+                    drawPreMenu();
+                }
                 drawMenu();
-            } else { // This covers gameplay, starting, and ending
+            } else { // This covers gameplay and game over screens
                 drawGameWorld();
                 drawUI();
                 drawEndScreens();
                 if (menuState === 'outro') {
-                    drawMenu();
+                    drawMenu(); // Draw opening gate
                 }
             }
 
-            // Overlay UI elements
             if ((canRestart && (gameOver || gameWon)) || isRestartButtonAnimating) {
                 drawRestartButton();
             }
             drawVolumeButton();
 
-            // Fade effect for quick restart
             if (isRestarting) {
                 ctx.fillStyle = `rgba(255, 255, 255, ${restartFadeAmount})`;
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1460,7 +1462,6 @@
                 const frameY = Math.floor(menuFrame / columns);
                 const sourceX = frameX * stateData.spriteWidth;
                 const sourceY = frameY * stateData.spriteHeight;
-                if(menuState !== 'outro' && !isResetting) ctx.clearRect(0, 0, canvas.width, canvas.height);
                 ctx.drawImage(currentImage, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, 0, 0, canvas.width, canvas.height);
             }
         }
