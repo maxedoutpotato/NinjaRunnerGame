@@ -207,7 +207,7 @@
             x: 0, y: canvas.height,
             targetY: 0,
             width: 120, height: 120,
-            frame: 0, frameTimer: 0, isAnimating: false, animationDirection: 1
+            frame: 0, frameTimer: 0, isAnimating: false, animationDirection: 1, scale: 1
         };
 
         // --- Animation Data ---
@@ -511,10 +511,12 @@
             return false;
         }
 
-        canvas.addEventListener('mousedown', (evt) => {});
+        canvas.addEventListener('mousedown', (evt) => {
+            handleCanvasRelease(getScaledCoordinates(evt));
+        });
 
         canvas.addEventListener('mouseup', (evt) => {
-              handleCanvasRelease(getScaledCoordinates(evt));
+             // handleCanvasRelease is now in mousedown for PC, this can be empty
         });
 
         canvas.addEventListener('touchstart', (e) => {
@@ -1102,9 +1104,16 @@
 
             // Scroll button slide animation
             if (menuState === 'intro' || menuState === 'loop') {
-                scrollButton.y += (scrollButton.targetY - scrollButton.y) * 0.1;
+                scrollButton.y += (scrollButton.targetY - scrollButton.y) * 0.05;
             } else {
-                scrollButton.y += (canvas.height + 50 - scrollButton.y) * 0.1;
+                scrollButton.y += (canvas.height + 50 - scrollButton.y) * 0.05;
+            }
+
+            if (menuState === 'loop' && !scrollButton.isAnimating && !isInfoBoxVisible) {
+                const pulse = 1 + Math.sin(lastTime / 500) * 0.05;
+                scrollButton.scale = pulse;
+            } else {
+                scrollButton.scale = 1;
             }
 
             // Scroll button frame animation
@@ -1300,10 +1309,14 @@
                 }
             }
 
-            if (menuState === 'intro' || menuState === 'loop') {
+            if (menuState === 'intro' || menuState === 'loop' || menuState === 'outro') {
                 drawScrollButton();
-                drawInfoBox();
             }
+
+            if (menuState === 'loop') {
+                 drawInfoBox();
+            }
+
 
             if ((canRestart && (gameOver || gameWon)) || isRestartButtonAnimating) {
                 drawRestartButton();
@@ -1527,7 +1540,13 @@
                 const frameY = Math.floor(btn.frame / columns);
                 const sourceX = frameX * stateData.spriteWidth;
                 const sourceY = frameY * stateData.spriteHeight;
-                ctx.drawImage(images.scroll, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, btn.x, btn.y, btn.width, btn.height);
+
+                const w = btn.width * btn.scale;
+                const h = btn.height * btn.scale;
+                const x = btn.x - (w - btn.width) / 2;
+                const y = btn.y - (h - btn.height) / 2;
+
+                ctx.drawImage(images.scroll, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, x, y, w, h);
             }
         }
 
