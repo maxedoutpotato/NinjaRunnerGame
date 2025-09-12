@@ -1184,7 +1184,7 @@
             }
 
             if ((gameOver || gameWon) && canRestart) {
-                const pulse = 1 + Math.sin(lastTime / 300) * 0.1;
+                const pulse = 1.7 + Math.sin(lastTime / 300) * 0.2;
                 shareButton.scale = pulse;
 
                 shareButton.frameTimer += deltaTime;
@@ -1672,8 +1672,8 @@
             scrollButton.x = canvas.width - 130;
             scrollButton.targetY = canvas.height - 130;
 
-            shareButton.x = canvas.width / 2 + 200;
-            shareButton.y = canvas.height / 2 - 40;
+            shareButton.x = canvas.width / 2 + 275;
+            shareButton.y = canvas.height / 2 - 80;
 
             if (menuState === 'pre-menu') {
                 scrollButton.y = canvas.height + 50;
