@@ -342,8 +342,8 @@
 
             if (event.code === 'Space' || event.code === 'ArrowUp') {
                  if (menuState === 'pre-menu') {
-                      unlockAudio();
-                      return;
+                     unlockAudio();
+                     return;
                  }
                 if ((gameOver || gameWon) && canRestart) {
                     isRestarting = true;
@@ -476,7 +476,7 @@
             if (canRestart && (gameOver || gameWon) &&
                  pos.x >= restartButton.x - restartBtnPadding && pos.x <= restartButton.x + restartButton.width + restartBtnPadding &&
                  pos.y >= restartButton.y - restartBtnPadding && pos.y <= restartButton.y + restartButton.height + restartBtnPadding) {
-                 
+                
                  if (isMobile) {
                     if (!isRestartButtonAnimating) {
                         isRestartButtonAnimating = true;
@@ -1008,17 +1008,10 @@
             }
         }
 
-        function fullGameReset(fromSpacebar = false) {
+        // --- FIX: Refactored fullGameReset to only reset variables. ---
+        // This function now has one clear job, making the game state easier to manage.
+        function fullGameReset() {
             isResetting = false;
-            
-            if(!fromSpacebar) {
-                menuState = 'loop';
-                menuFrame = 0;
-                menuFrameTimer = 0;
-                sounds.intro.currentTime = 0;
-                sounds.intro.play();
-            }
-
             gameOver = false; gameWon = false; gameSpeed = 300; score = 0;
             gameOverFade = 0; uiFadeInTimer = 0;
             obstaclesArray = []; sceneryArray = []; effectsArray = []; floatingScores = [];
@@ -1031,12 +1024,6 @@
             };
             player.y = PLAYER_GROUND_LEVEL; player.state = 'run'; player.frame = 0; player.frameTimer = 0;
             player.isJumping = false; player.isCrouching = false; player.isTeleporting = false; player.velocityY = 0;
-            
-            if (fromSpacebar) {
-                startGame();
-            } else {
-                gameStarted = false;
-            }
         }
 
         // --- Game/Menu Loops ---
@@ -1054,7 +1041,13 @@
                 if (menuState === 'intro' && menuFrame >= stateData.frames) {
                     showPreMenuBehindIntro = false;
                     if (isResetting) {
+                        // --- FIX: Logic for returning to menu is now explicit here. ---
                         fullGameReset();
+                        gameStarted = false;
+                        menuState = 'loop';
+                        menuFrame = 0;
+                        sounds.intro.currentTime = 0;
+                        sounds.intro.play();
                     } else {
                         menuState = 'loop';
                         menuFrame = 0;
@@ -1144,7 +1137,9 @@
                 restartFadeAmount += 2 * fadeDirection * deltaTime;
                 if (restartFadeAmount >= 1 && fadeDirection === 1) {
                     fadeDirection = -1;
-                    fullGameReset(true); 
+                    // --- FIX: Logic for restarting the game is now explicit here. ---
+                    fullGameReset();
+                    startGame();
                 }
                 if (restartFadeAmount <= 0 && fadeDirection === -1) {
                     isRestarting = false;
@@ -1162,7 +1157,7 @@
 
             if (!gameStarted) {
                 if (isRestartButtonAnimating) {
-                     //fallthrough to button animation logic
+                    //fallthrough to button animation logic
                 } else {
                     return;
                 }
@@ -1652,5 +1647,3 @@
     </script>
 </body>
 </html>
-
-
