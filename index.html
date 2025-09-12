@@ -172,15 +172,16 @@
         let wantsToCrouch = false;
         let isMuted = false;
         let showPreMenuBehindIntro = false;
+        let isInfoBoxVisible = false;
 
         // --- Bonus Spawn Tracking ---
         let bonusSpawns = {
             teleportGold: { '3000': 0, '9000': 0, '15000': 0 },
-            bonusPoints: { '3000': 0, '6000': 0, '9000': 0, '12000': 0, '15000': 0, '19000': 0, '21000': 0 }
+            bonusPoints: { '3000': 0, '6000': 0, '9000': 0, '12000': 0, '15000': 0, '18000': 0, '21000': 0 }
         };
         const bonusLimits = {
             teleportGold: { '3000': 2, '9000': 1, '15000': 1 },
-            bonusPoints: { '3000': 4, '6000': 3, '9000': 2, '12000': 2, '15000': 3, '19000': 2, '21000': 2 }
+            bonusPoints: { '3000': 4, '6000': 3, '9000': 2, '12000': 2, '15000': 3, '18000': 2, '21000': 2 }
         };
 
         // --- Player State ---
@@ -201,6 +202,12 @@
             x: 0, y: 0, width: 50, height: 50,
             frame: 5, frameTimer: 0, isHovered: false, scale: 1, targetScale: 1,
             opacity: 0.4, targetOpacity: 0.4
+        };
+        let scrollButton = {
+            x: 0, y: canvas.height,
+            targetY: 0,
+            width: 120, height: 120,
+            frame: 0, frameTimer: 0, isAnimating: false, animationDirection: 1
         };
 
         // --- Animation Data ---
@@ -440,6 +447,13 @@
         });
 
         function handleCanvasRelease(pos) {
+             if (isInfoBoxVisible) {
+                isInfoBoxVisible = false;
+                scrollButton.isAnimating = true;
+                scrollButton.animationDirection = -1;
+                return true;
+            }
+
             const volBtn = volumeButton;
             const volBtnPadding = isMobile ? 30 : 10;
             if (pos.x >= volBtn.x - volBtnPadding && pos.x <= volBtn.x + volBtn.width + volBtnPadding &&
@@ -482,6 +496,18 @@
                 }
                 return true;
             }
+
+            const scrollBtn = scrollButton;
+            const scrollBtnPadding = isMobile ? 30 : 0;
+             if (isMobile && menuState === 'loop' &&
+                pos.x >= scrollBtn.x - scrollBtnPadding && pos.x <= scrollBtn.x + scrollBtn.width + scrollBtnPadding &&
+                pos.y >= scrollBtn.y - scrollBtnPadding && pos.y <= scrollBtn.y + scrollBtn.height + scrollBtnPadding) {
+                isInfoBoxVisible = true;
+                scrollButton.isAnimating = true;
+                scrollButton.animationDirection = 1;
+                return true;
+            }
+
             return false;
         }
 
@@ -861,7 +887,7 @@
                 else if (score < 9000) currentMilestoneKey = '9000';
                 else if (score < 12000) currentMilestoneKey = '12000';
                 else if (score < 15000) currentMilestoneKey = '15000';
-                else if (score < 19000) currentMilestoneKey = '19000';
+                else if (score < 18000) currentMilestoneKey = '18000';
                 else if (score < 21000) currentMilestoneKey = '21000';
                 let bonusSpawned = false;
                 if (bonusLimits.teleportGold[currentMilestoneKey] && bonusSpawns.teleportGold[currentMilestoneKey] < bonusLimits.teleportGold[currentMilestoneKey] && Math.random() < 0.15) {
@@ -965,7 +991,7 @@
                 inversionTarget = 1;
                 sounds.track.pause();
                 setTimeout(() => { canRestart = true; }, 2000);
-            } else if (score >= 15000 && score < 19000) {
+            } else if (score >= 15000 && score < 18000) {
                  inversionTarget = 1;
             } else if (score >= 9000 && score < 12000) {
                  inversionTarget = 1;
@@ -999,7 +1025,7 @@
             wantsToCrouch = false;
             bonusSpawns = {
                 teleportGold: { '3000': 0, '9000': 0, '15000': 0 },
-                bonusPoints: { '3000': 0, '6000': 0, '9000': 0, '12000': 0, '15000': 0, '19000': 0, '21000': 0 }
+                bonusPoints: { '3000': 0, '6000': 0, '9000': 0, '12000': 0, '15000': 0, '18000': 0, '21000': 0 }
             };
             player.y = PLAYER_GROUND_LEVEL; player.state = 'run'; player.frame = 0; player.frameTimer = 0;
             player.isJumping = false; player.isCrouching = false; player.isTeleporting = false; player.velocityY = 0;
@@ -1071,6 +1097,27 @@
                 } else if (!isMuted && volBtn.frame < volAnimData.frames - 1) {
                     volBtn.frame++;
                     volBtn.frameTimer = 0;
+                }
+            }
+
+            // Scroll button slide animation
+            if (menuState === 'intro' || menuState === 'loop') {
+                scrollButton.y += (scrollButton.targetY - scrollButton.y) * 0.1;
+            } else {
+                scrollButton.y += (canvas.height + 50 - scrollButton.y) * 0.1;
+            }
+
+            // Scroll button frame animation
+            if (scrollButton.isAnimating) {
+                scrollButton.frameTimer += deltaTime;
+                const scrollAnimData = animationStates.scroll;
+                if (scrollAnimData && scrollButton.frameTimer >= scrollAnimData.frameDuration) {
+                    scrollButton.frame += scrollButton.animationDirection;
+                    scrollButton.frameTimer = 0;
+                    if (scrollButton.frame >= scrollAnimData.frames - 1 || scrollButton.frame <= 0) {
+                        scrollButton.frame = Math.max(0, Math.min(scrollAnimData.frames - 1, scrollButton.frame));
+                        scrollButton.isAnimating = false;
+                    }
                 }
             }
 
@@ -1234,23 +1281,28 @@
             if (menuState === 'pre-menu') {
                 drawPreMenu();
             } else if (isResetting || isRestartButtonAnimating) {
-                drawGameWorld(); // Draw the last frame of the game
-                drawEndScreens(); // Draw GAME OVER text
+                drawGameWorld(); 
+                drawEndScreens(); 
                 if (!isRestartButtonAnimating) {
-                    drawMenu(); // Draw the closing gate on top
+                    drawMenu(); 
                 }
             } else if (menuState === 'intro' || menuState === 'loop') {
                 if (showPreMenuBehindIntro) {
                     drawPreMenu();
                 }
                 drawMenu();
-            } else { // This covers gameplay and game over screens
+            } else { 
                 drawGameWorld();
                 drawUI();
                 drawEndScreens();
                 if (menuState === 'outro') {
-                    drawMenu(); // Draw opening gate
+                    drawMenu(); 
                 }
+            }
+
+            if (menuState === 'intro' || menuState === 'loop') {
+                drawScrollButton();
+                drawInfoBox();
             }
 
             if ((canRestart && (gameOver || gameWon)) || isRestartButtonAnimating) {
@@ -1465,6 +1517,35 @@
                 ctx.drawImage(currentImage, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, 0, 0, canvas.width, canvas.height);
             }
         }
+
+        function drawScrollButton() {
+            if (images.scroll && images.scroll.complete && images.scroll.naturalWidth > 0) {
+                const btn = scrollButton;
+                const stateData = animationStates.scroll;
+                const columns = stateData.columns;
+                const frameX = btn.frame % columns;
+                const frameY = Math.floor(btn.frame / columns);
+                const sourceX = frameX * stateData.spriteWidth;
+                const sourceY = frameY * stateData.spriteHeight;
+                ctx.drawImage(images.scroll, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, btn.x, btn.y, btn.width, btn.height);
+            }
+        }
+
+        function drawInfoBox() {
+            if (isInfoBoxVisible) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+                const boxWidth = canvas.width * 0.8;
+                const boxHeight = canvas.height * 0.8;
+                const boxX = (canvas.width - boxWidth) / 2;
+                const boxY = (canvas.height - boxHeight) / 2;
+                ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+                
+                ctx.fillStyle = 'white';
+                ctx.font = '20px "Segoe UI"';
+                ctx.textAlign = 'center';
+                ctx.fillText('Info box placeholder.', canvas.width / 2, canvas.height / 2);
+            }
+        }
         
         function drawRotateCanvas() {
             if (images.rotate && images.rotate.complete && images.rotate.naturalWidth > 0) {
@@ -1506,6 +1587,13 @@
 
             volumeButton.x = canvas.width / 2 - 25;
             volumeButton.y = canvas.height - 70;
+
+            scrollButton.x = canvas.width - 130;
+            scrollButton.targetY = canvas.height - 130;
+
+            if (menuState === 'pre-menu') {
+                scrollButton.y = canvas.height + 50;
+            }
         }
 
         // --- Game Initialization ---
