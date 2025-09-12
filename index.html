@@ -499,7 +499,7 @@
 
             const scrollBtn = scrollButton;
             const scrollBtnPadding = isMobile ? 30 : 0;
-             if (isMobile && menuState === 'loop' &&
+            if (menuState === 'loop' &&
                 pos.x >= scrollBtn.x - scrollBtnPadding && pos.x <= scrollBtn.x + scrollBtn.width + scrollBtnPadding &&
                 pos.y >= scrollBtn.y - scrollBtnPadding && pos.y <= scrollBtn.y + scrollBtn.height + scrollBtnPadding) {
                 isInfoBoxVisible = true;
@@ -1121,14 +1121,14 @@
                 }
             }
 
-            if (menuState === 'pre-menu') {
+            if (menuState === 'pre-menu' || showPreMenuBehindIntro) {
                 preMenuFrameTimer += deltaTime;
                 const preMenuAnimation = isMobile ? animationStates.tap : animationStates.space;
                 if (preMenuAnimation && preMenuFrameTimer >= preMenuAnimation.frameDuration) {
                     preMenuFrame = (preMenuFrame + 1) % preMenuAnimation.frames;
                     preMenuFrameTimer = 0;
                 }
-                return;
+                if (!showPreMenuBehindIntro) return;
             }
 
             if (isRestarting) {
