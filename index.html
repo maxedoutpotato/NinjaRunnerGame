@@ -127,63 +127,52 @@
             PLAYER_GROUND_LEVEL - 120
         ];
 
-        // --- Game State Management ---
-        const gameState = {
-            gameStarted: false,
-            gameOver: false,
-            gameOverFade: 0,
-            gameWon: false,
-            canRestart: false,
-            isRestarting: false,
-            isResetting: false,
-            isRestartButtonAnimating: false,
-            restartFadeAmount: 0,
-            fadeDirection: 1,
-            groundX: 0,
-            bg1X: 0,
-            bg2X: 0,
-            grassX: 0,
-            gameSpeed: 300,
-            score: 0,
-            scoreMilestone: 1,
-            teleportCharges: 0,
-            inversionAmount: 0,
-            inversionTarget: 0,
-        };
-
-        const uiState = {
-            menuState: 'pre-menu',
-            menuFrame: 0,
-            preMenuFrame: 0,
-            rotateFrame: 0,
-            audioUnlocked: false,
-            isMuted: false,
-            showPreMenuBehindIntro: false,
-            isInfoBoxVisible: false,
-        };
-
-        const timers = {
-            lastTime: 0,
-            uiFadeInTimer: 0,
-            scoreBounceTimer: 0,
-            teleportBounceTimer: 0,
-            menuFrameTimer: 0,
-            preMenuFrameTimer: 0,
-            rotateFrameTimer: 0,
-            touchStartTime: 0,
-        };
+        // --- Game State ---
+        let menuState = 'pre-menu'; // 'pre-menu', 'intro', 'loop', 'outro', 'inactive'
+        let gameStarted = false;
+        let gameOver = false;
+        let gameOverFade = 0;
+        let gameWon = false;
+        let canRestart = false;
+        let isRestarting = false; // For fade transition
+        let isResetting = false; // For menu transition
+        let isRestartButtonAnimating = false;
+        let restartFadeAmount = 0;
+        let fadeDirection = 1;
+        let groundX = 0;
+        let bg1X = 0;
+        let bg2X = 0;
+        let grassX = 0;
+        let gameSpeed = 300;
+        const speedIncreaseRate = 0.3;
+        let obstaclesArray = [];
+        let sceneryArray = [];
+        let effectsArray = [];
+        let score = 0;
+        let uiFadeInTimer = 0;
+        let floatingScores = [];
+        let scoreMilestone = 1;
+        let scoreBounceTimer = 0;
+        let teleportBounceTimer = 0;
+        let teleportCharges = 0;
+        let inversionAmount = 0;
+        let inversionTarget = 0;
+        let lastTime = 0;
         
-        const inputState = {
-            isHoldingTouch: false,
-            wantsToCrouch: false,
-        };
-
-        const collections = {
-            obstaclesArray: [],
-            sceneryArray: [],
-            effectsArray: [],
-            floatingScores: [],
-        };
+        let menuFrame = 0;
+        let menuFrameTimer = 0;
+        let preMenuFrame = 0;
+        let preMenuFrameTimer = 0;
+        let rotateFrame = 0;
+        let rotateFrameTimer = 0;
+        
+        let touchStartTime = 0;
+        let isHoldingTouch = false;
+        let audioUnlocked = false;
+        let wantsToCrouch = false;
+        let isMuted = false;
+        let showPreMenuBehindIntro = false;
+        let isInfoBoxVisible = false;
 
         // --- Bonus Spawn Tracking ---
         let bonusSpawns = {
@@ -315,24 +304,24 @@
 
         // --- Input Handling ---
         function handleJump() {
-            if (!player.isJumping && !gameState.gameOver) {
-                inputState.wantsToCrouch = false;
+            if (!player.isJumping && !gameOver) {
+                wantsToCrouch = false;
                 player.isJumping = true;
                 player.velocityY = JUMP_STRENGTH;
                 player.state = 'jump';
                 player.frame = 0;
                 sounds.jump.currentTime = 0;
                 sounds.jump.play();
-                collections.effectsArray.forEach(effect => { if(effect.startFading) effect.startFading() });
+                effectsArray.forEach(effect => { if(effect.startFading) effect.startFading() });
             }
         }
 
         function handleCrouchStart() {
             if (player.isJumping) {
-                inputState.wantsToCrouch = true;
+                wantsToCrouch = true;
                 return;
             }
-            if (gameState.gameStarted && !player.isJumping && !player.isCrouching) {
+            if (gameStarted && !player.isJumping && !player.isCrouching) {
                 player.isCrouching = true;
                 player.state = 'crouch';
                 sounds.crouch.currentTime = 0;
@@ -341,7 +330,7 @@
         }
 
         function handleCrouchEnd() {
-            inputState.wantsToCrouch = false;
+            wantsToCrouch = false;
             if (player.isCrouching) {
                 player.isCrouching = false;
                 player.state = 'run';
@@ -349,23 +338,23 @@
         }
 
         document.addEventListener('keydown', function(event) {
-            if (gameState.isRestarting || gameState.isResetting || gameState.isRestartButtonAnimating || uiState.isInfoBoxVisible) return;
+            if (isRestarting || isResetting || isRestartButtonAnimating) return;
 
             if (event.code === 'Space' || event.code === 'ArrowUp') {
-                 if (uiState.menuState === 'pre-menu') {
+                 if (menuState === 'pre-menu') {
                       unlockAudio();
                       return;
                  }
-                if ((gameState.gameOver || gameState.gameWon) && gameState.canRestart) {
-                    gameState.isRestarting = true;
-                    gameState.canRestart = false;
+                if ((gameOver || gameWon) && canRestart) {
+                    isRestarting = true;
+                    canRestart = false;
                     return;
                 }
-                if (!gameState.gameStarted) {
-                    if (uiState.menuState === 'loop') {
-                        uiState.menuState = 'outro';
-                        uiState.menuFrame = 0;
-                        timers.menuFrameTimer = 0;
+                if (!gameStarted) {
+                    if (menuState === 'loop') {
+                        menuState = 'outro';
+                        menuFrame = 0;
+                        menuFrameTimer = 0;
                         sounds.intro.pause();
                         sounds.intro.currentTime = 0;
                         startGame();
@@ -375,14 +364,14 @@
                 }
             }
             
-            if (gameState.gameOver || !gameState.gameStarted) return;
+            if (gameOver || !gameStarted) return;
 
             if ((event.code === 'KeyS' || event.code === 'ArrowDown')) {
                 handleCrouchStart();
             }
         });
         document.addEventListener('keyup', function(event) {
-            if (gameState.gameOver || gameState.isRestarting || !gameState.gameStarted || gameState.isResetting) return;
+            if (gameOver || isRestarting || !gameStarted || isResetting) return;
             if (event.code === 'KeyS' || event.code === 'ArrowDown') {
                 handleCrouchEnd();
             }
@@ -434,7 +423,7 @@
                 }
             }
 
-            if (!gameState.canRestart) {
+            if (!canRestart) {
                 canvas.style.cursor = 'default';
                 return;
             };
@@ -458,8 +447,8 @@
         });
 
         function handleCanvasRelease(pos) {
-            if (uiState.isInfoBoxVisible) {
-                uiState.isInfoBoxVisible = false;
+             if (isInfoBoxVisible) {
+                isInfoBoxVisible = false;
                 scrollButton.isAnimating = true;
                 scrollButton.animationDirection = -1;
                 return true;
@@ -484,24 +473,24 @@
             }
 
             const restartBtnPadding = isMobile ? 30 : 0;
-            if (gameState.canRestart && (gameState.gameOver || gameState.gameWon) &&
+            if (canRestart && (gameOver || gameWon) &&
                  pos.x >= restartButton.x - restartBtnPadding && pos.x <= restartButton.x + restartButton.width + restartBtnPadding &&
                  pos.y >= restartButton.y - restartBtnPadding && pos.y <= restartButton.y + restartButton.height + restartBtnPadding) {
                  
                  if (isMobile) {
-                    if (!gameState.isRestartButtonAnimating) {
-                        gameState.isRestartButtonAnimating = true;
+                    if (!isRestartButtonAnimating) {
+                        isRestartButtonAnimating = true;
                         restartButton.frame = 0; 
                         sounds.gecko.currentTime = 0;
                         sounds.gecko.play();
-                        gameState.canRestart = false; 
+                        canRestart = false; 
                     }
                 } else { // PC logic
-                    gameState.isResetting = true;
-                    uiState.menuState = 'intro';
-                    uiState.menuFrame = 0;
-                    timers.menuFrameTimer = 0;
-                    gameState.canRestart = false;
+                    isResetting = true;
+                    menuState = 'intro';
+                    menuFrame = 0;
+                    menuFrameTimer = 0;
+                    canRestart = false;
                     sounds.gateClose.play();
                     if(sounds.gecko) sounds.gecko.pause();
                 }
@@ -510,29 +499,13 @@
 
             const scrollBtn = scrollButton;
             const scrollBtnPadding = isMobile ? 30 : 0;
-            if (uiState.menuState === 'loop' &&
+            if (menuState === 'loop' &&
                 pos.x >= scrollBtn.x - scrollBtnPadding && pos.x <= scrollBtn.x + scrollBtn.width + scrollBtnPadding &&
                 pos.y >= scrollBtn.y - scrollBtnPadding && pos.y <= scrollBtn.y + scrollBtn.height + scrollBtnPadding) {
-                uiState.isInfoBoxVisible = true;
+                isInfoBoxVisible = true;
                 scrollButton.isAnimating = true;
                 scrollButton.animationDirection = 1;
                 return true;
-            }
-            
-            if (uiState.menuState === 'pre-menu') {
-                unlockAudio();
-                return true;
-            }
-
-            // If no other UI was hit, and we're in the menu, start the game.
-            if (!gameState.gameStarted && uiState.menuState === 'loop') {
-                uiState.menuState = 'outro';
-                uiState.menuFrame = 0;
-                timers.menuFrameTimer = 0;
-                sounds.intro.pause();
-                sounds.intro.currentTime = 0;
-                startGame();
-                return true; // Action taken
             }
 
             return false;
@@ -548,42 +521,54 @@
 
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            if (gameState.isRestarting || gameState.isResetting || gameState.isRestartButtonAnimating) return;
-            timers.touchStartTime = Date.now();
-            inputState.isHoldingTouch = true;
+            if (isRestarting || isResetting || isRestartButtonAnimating) return;
+            touchStartTime = Date.now();
+            isHoldingTouch = true;
         }, { passive: false });
 
         canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
-            if (gameState.isRestarting || gameState.isResetting || gameState.isRestartButtonAnimating) return;
+            if (isRestarting || isResetting || isRestartButtonAnimating) return;
             
             const touchPos = getScaledCoordinates(e);
             if (!touchPos) return;
 
             if (handleCanvasRelease(touchPos)) {
-                inputState.isHoldingTouch = false;
-                timers.touchStartTime = 0;
+                isHoldingTouch = false;
+                touchStartTime = 0;
                 return;
             }
-            inputState.isHoldingTouch = false;
+            isHoldingTouch = false;
 
-            if ((gameState.gameOver || gameState.gameWon) && gameState.canRestart) {
-                gameState.isRestarting = true;
-                gameState.canRestart = false;
+            if (menuState === 'pre-menu') {
+                unlockAudio();
+                return;
+            }
+
+            if ((gameOver || gameWon) && canRestart) {
+                isRestarting = true;
+                canRestart = false;
                 return;
             }
             
-            const touchDuration = Date.now() - timers.touchStartTime;
-            if (gameState.gameStarted && touchDuration > 0) { 
+            const touchDuration = Date.now() - touchStartTime;
+            if (gameStarted && touchDuration > 0) { 
                 if (touchDuration < 250) handleJump();
                 handleCrouchEnd();
+            } else if (!gameStarted && menuState === 'loop') {
+                menuState = 'outro';
+                menuFrame = 0;
+                menuFrameTimer = 0;
+                sounds.intro.pause();
+                sounds.intro.currentTime = 0;
+                startGame();
             }
-            timers.touchStartTime = 0;
+            touchStartTime = 0;
         }, { passive: false });
 
         // --- Sound Utility ---
         function unlockAudio() {
-            if (uiState.audioUnlocked) return;
+            if (audioUnlocked) return;
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             if (audioContext.state === 'suspended') {
                 audioContext.resume();
@@ -594,20 +579,20 @@
                     sounds[key].currentTime = 0;
                 }).catch(e => {});
             }
-            uiState.audioUnlocked = true;
-            uiState.showPreMenuBehindIntro = true;
+            audioUnlocked = true;
+            showPreMenuBehindIntro = true;
             
             setTimeout(() => {
-                uiState.menuState = 'intro'; 
+                menuState = 'intro'; 
                 sounds.intro.play();
                 sounds.gateClose.play();
             }, 50);
         }
 
         function toggleMute() {
-            uiState.isMuted = !uiState.isMuted;
+            isMuted = !isMuted;
             for (const key in sounds) {
-                sounds[key].muted = uiState.isMuted;
+                sounds[key].muted = isMuted;
             }
         }
 
@@ -667,7 +652,7 @@
                 if (this.isFading) {
                     if (this.opacity > 0) {
                         this.opacity -= 2 * deltaTime;
-                        this.x -= gameState.gameSpeed * 0.2 * deltaTime;
+                        this.x -= gameSpeed * 0.2 * deltaTime;
                     }
                 } else {
                     if (this.opacity < 1) this.opacity += 2 * deltaTime;
@@ -675,7 +660,7 @@
                     this.y = player.y + RUN_CLOUD_OFFSET_Y;
                     this.frameTimer += deltaTime;
                     const stateData = animationStates.runCloud;
-                    const dynamicFrameDuration = Math.max(0.02, stateData.frameDuration - (gameState.gameSpeed / 10000));
+                    const dynamicFrameDuration = Math.max(0.02, stateData.frameDuration - (gameSpeed / 10000));
                     if (this.frameTimer >= dynamicFrameDuration) {
                         this.frame = (this.frame + 1) % stateData.frames;
                         this.frameTimer = 0;
@@ -731,7 +716,7 @@
         }
         class SceneryObject {
             constructor() { this.x = canvas.width + Math.random() * 50; }
-            update(deltaTime) { this.x -= gameState.gameSpeed * this.speedModifier * deltaTime; }
+            update(deltaTime) { this.x -= gameSpeed * this.speedModifier * deltaTime; }
         }
         class Mountain extends SceneryObject {
             constructor() {
@@ -750,7 +735,7 @@
         }
         class Obstacle {
              constructor() { this.x = canvas.width; this.frame = 0; this.frameTimer = 0; this.passed = false; }
-             update(deltaTime) { this.x -= gameState.gameSpeed * this.speedModifier * deltaTime; }
+             update(deltaTime) { this.x -= gameSpeed * this.speedModifier * deltaTime; }
         }
         class Shuriken extends Obstacle {
             constructor() {
@@ -881,108 +866,108 @@
 
         // --- Game Logic Handlers ---
         function handleScenery(deltaTime) {
-            collections.sceneryArray.forEach(item => item.update(deltaTime));
-            collections.sceneryArray = collections.sceneryArray.filter(item => item.x > -item.width);
-            if (gameState.gameOver || gameState.isRestarting || gameState.isResetting) return;
+            sceneryArray.forEach(item => item.update(deltaTime));
+            sceneryArray = sceneryArray.filter(item => item.x > -item.width);
+            if (gameOver || isRestarting || isResetting) return;
             const minMountainSpawnDistance = canvas.width;
             const mountainSpawnChance = 0.005;
-            let canSpawnMountain = collections.sceneryArray.length === 0 || collections.sceneryArray[collections.sceneryArray.length - 1].x < canvas.width - minMountainSpawnDistance;
+            let canSpawnMountain = sceneryArray.length === 0 || sceneryArray[sceneryArray.length - 1].x < canvas.width - minMountainSpawnDistance;
             if (canSpawnMountain && Math.random() < mountainSpawnChance) {
-                collections.sceneryArray.push(new Mountain());
+                sceneryArray.push(new Mountain());
             }
         }
         function handleObstacles(deltaTime) {
-            collections.obstaclesArray.forEach(obstacle => obstacle.update(deltaTime));
-            if (gameState.gameOver || gameState.isRestarting || gameState.isResetting) return;
+            obstaclesArray.forEach(obstacle => obstacle.update(deltaTime));
+            if (gameOver || isRestarting || isResetting) return;
             const minSpawnDistance = canvas.width / 1.1;
             const spawnChance = 0.015;
-            let canSpawn = (collections.obstaclesArray.length === 0 && !gameState.isRestarting) || (collections.obstaclesArray.length > 0 && collections.obstaclesArray[collections.obstaclesArray.length - 1].x < canvas.width - minSpawnDistance);
+            let canSpawn = (obstaclesArray.length === 0 && !isRestarting) || (obstaclesArray.length > 0 && obstaclesArray[obstaclesArray.length - 1].x < canvas.width - minSpawnDistance);
             if (canSpawn && Math.random() < spawnChance) {
                 let currentMilestoneKey = '0';
-                if (gameState.score < 3000) currentMilestoneKey = '3000';
-                else if (gameState.score < 6000) currentMilestoneKey = '6000';
-                else if (gameState.score < 9000) currentMilestoneKey = '9000';
-                else if (gameState.score < 12000) currentMilestoneKey = '12000';
-                else if (gameState.score < 15000) currentMilestoneKey = '15000';
-                else if (gameState.score < 18000) currentMilestoneKey = '18000';
-                else if (gameState.score < 21000) currentMilestoneKey = '21000';
+                if (score < 3000) currentMilestoneKey = '3000';
+                else if (score < 6000) currentMilestoneKey = '6000';
+                else if (score < 9000) currentMilestoneKey = '9000';
+                else if (score < 12000) currentMilestoneKey = '12000';
+                else if (score < 15000) currentMilestoneKey = '15000';
+                else if (score < 18000) currentMilestoneKey = '18000';
+                else if (score < 21000) currentMilestoneKey = '21000';
                 let bonusSpawned = false;
                 if (bonusLimits.teleportGold[currentMilestoneKey] && bonusSpawns.teleportGold[currentMilestoneKey] < bonusLimits.teleportGold[currentMilestoneKey] && Math.random() < 0.15) {
-                    collections.obstaclesArray.push(new TeleportGold());
+                    obstaclesArray.push(new TeleportGold());
                     bonusSpawns.teleportGold[currentMilestoneKey]++;
                     bonusSpawned = true;
                 } 
                 else if (bonusLimits.bonusPoints[currentMilestoneKey] && bonusSpawns.bonusPoints[currentMilestoneKey] < bonusLimits.bonusPoints[currentMilestoneKey] && Math.random() < 0.25) {
-                    collections.obstaclesArray.push(new BonusPoints());
+                    obstaclesArray.push(new BonusPoints());
                     bonusSpawns.bonusPoints[currentMilestoneKey]++;
                     bonusSpawned = true;
                 }
                 if (!bonusSpawned) {
                     const obstacleType = Math.random();
-                    if (obstacleType < 0.4) collections.obstaclesArray.push(new Shuriken());
-                    else if (Math.random() < 0.5) collections.obstaclesArray.push(new Lantern());
-                    else collections.obstaclesArray.push(new Rock());
+                    if (obstacleType < 0.4) obstaclesArray.push(new Shuriken());
+                    else if (Math.random() < 0.5) obstaclesArray.push(new Lantern());
+                    else obstaclesArray.push(new Rock());
                 }
             }
         }
         function addScore(points, color = {r:0, g:100, b:0}) {
-            const oldScore = gameState.score;
-            gameState.score += points;
+            const oldScore = score;
+            score += points;
 
-            if (Math.floor(gameState.score / 1000) > Math.floor(oldScore / 1000)) {
+            if (Math.floor(score / 1000) > Math.floor(oldScore / 1000)) {
                 sounds.kabuki.play();
-                timers.scoreBounceTimer = 0.5;
+                scoreBounceTimer = 0.5;
             }
-            if (gameState.score >= gameState.scoreMilestone * 3000) {
+            if (score >= scoreMilestone * 3000) {
                 resetGameForNextLevel();
                 return true;
             }
-            collections.floatingScores.push(new FloatingScore(points, player.x + player.width / 2 + 30, player.y, color));
+            floatingScores.push(new FloatingScore(points, player.x + player.width / 2 + 30, player.y, color));
             return false;
         }
         function checkCollisionsAndScore() {
-            if (gameState.gameOver) return;
+            if (gameOver) return;
             const playerHitbox = player.isCrouching ? player.crouchHitbox : player.hitbox;
             const px = player.x + playerHitbox.offsetX;
             const py = player.y + playerHitbox.offsetY;
             const pw = playerHitbox.width;
             const ph = playerHitbox.height;
-            for (let i = collections.obstaclesArray.length - 1; i >= 0; i--) {
-                const obstacle = collections.obstaclesArray[i];
+            for (let i = obstaclesArray.length - 1; i >= 0; i--) {
+                const obstacle = obstaclesArray[i];
                 const ox = obstacle.x + obstacle.hitbox.offsetX;
                 const oy = obstacle.y + obstacle.hitbox.offsetY;
                 const ow = obstacle.hitbox.width;
                 const oh = obstacle.hitbox.height;
                 if (px < ox + ow && px + pw > ox && py < oy + oh && py + ph > oy) {
                     if (obstacle instanceof TeleportGold) {
-                        gameState.teleportCharges++;
-                        timers.teleportBounceTimer = 1;
+                        teleportCharges++;
+                        teleportBounceTimer = 1;
                         sounds.secret.currentTime = 0;
                         sounds.secret.play();
-                        collections.obstaclesArray.splice(i, 1);
+                        obstaclesArray.splice(i, 1);
                     } else if (obstacle instanceof BonusPoints) {
                         const points = Math.floor(Math.random() * 151) + 150;
                         const didReset = addScore(points, {r: 0, g: 100, b: 255});
                         sounds.eat.currentTime = 0;
                         sounds.eat.play();
-                        collections.obstaclesArray.splice(i, 1);
+                        obstaclesArray.splice(i, 1);
                         if (didReset) return;
-                    } else if (gameState.teleportCharges > 0) {
-                        gameState.teleportCharges--;
+                    } else if (teleportCharges > 0) {
+                        teleportCharges--;
                         player.isTeleporting = true;
                         sounds.teleport.currentTime = 0;
                         sounds.teleport.play();
-                        collections.effectsArray.push(new TeleportEffect(player.x, player.y, player.isJumping));
-                        collections.obstaclesArray.splice(i, 1);
+                        effectsArray.push(new TeleportEffect(player.x, player.y, player.isJumping));
+                        obstaclesArray.splice(i, 1);
                     } else {
-                        gameState.gameOver = true;
+                        gameOver = true;
                         player.state = 'fall';
                         player.frame = 0;
                         sounds.end.play();
                         sounds.fail.play();
                         sounds.track.pause();
                         sounds.track.currentTime = 0;
-                        setTimeout(() => { gameState.canRestart = true; }, 2000);
+                        setTimeout(() => { canRestart = true; }, 2000);
                     }
                 }
                 if (!obstacle.passed && obstacle.x + obstacle.width < player.x) {
@@ -998,24 +983,24 @@
             }
         }
         function resetGameForNextLevel() {
-            gameState.gameSpeed = 300;
-            collections.obstaclesArray = [];
-            collections.floatingScores = [];
+            gameSpeed = 300;
+            obstaclesArray = [];
+            floatingScores = [];
             sounds.bell.play();
-            gameState.scoreMilestone++;
-            if (gameState.score >= 21000) {
-                gameState.gameWon = true;
-                gameState.inversionTarget = 1;
+            scoreMilestone++;
+            if (score >= 21000) {
+                gameWon = true;
+                inversionTarget = 1;
                 sounds.track.pause();
-                setTimeout(() => { gameState.canRestart = true; }, 2000);
-            } else if (gameState.score >= 15000 && gameState.score < 18000) {
-                 gameState.inversionTarget = 1;
-            } else if (gameState.score >= 9000 && gameState.score < 12000) {
-                 gameState.inversionTarget = 1;
-            } else if (gameState.score >= 3000 && gameState.score < 6000) {
-                 gameState.inversionTarget = 1;
+                setTimeout(() => { canRestart = true; }, 2000);
+            } else if (score >= 15000 && score < 18000) {
+                 inversionTarget = 1;
+            } else if (score >= 9000 && score < 12000) {
+                 inversionTarget = 1;
+            } else if (score >= 3000 && score < 6000) {
+                 inversionTarget = 1;
             } else {
-                 gameState.inversionTarget = 0;
+                 inversionTarget = 0;
             }
             if (!player.isJumping) {
                 player.state = 'run';
@@ -1024,33 +1009,22 @@
         }
 
         function fullGameReset(fromSpacebar = false) {
-            gameState.isResetting = false;
+            isResetting = false;
             
             if(!fromSpacebar) {
-                uiState.menuState = 'loop';
-                uiState.menuFrame = 0;
-                timers.menuFrameTimer = 0;
+                menuState = 'loop';
+                menuFrame = 0;
+                menuFrameTimer = 0;
                 sounds.intro.currentTime = 0;
                 sounds.intro.play();
             }
 
-            gameState.gameOver = false; 
-            gameState.gameWon = false; 
-            gameState.gameSpeed = 300; 
-            gameState.score = 0;
-            gameState.gameOverFade = 0; 
-            timers.uiFadeInTimer = 0;
-            collections.obstaclesArray = []; 
-            collections.sceneryArray = []; 
-            collections.effectsArray = []; 
-            collections.floatingScores = [];
-            gameState.scoreMilestone = 1; 
-            gameState.teleportCharges = 0; 
-            gameState.inversionAmount = 0; 
-            gameState.inversionTarget = 0;
-            timers.scoreBounceTimer = 0; 
-            timers.teleportBounceTimer = 0;
-            inputState.wantsToCrouch = false;
+            gameOver = false; gameWon = false; gameSpeed = 300; score = 0;
+            gameOverFade = 0; uiFadeInTimer = 0;
+            obstaclesArray = []; sceneryArray = []; effectsArray = []; floatingScores = [];
+            scoreMilestone = 1; teleportCharges = 0; inversionAmount = 0; inversionTarget = 0;
+            scoreBounceTimer = 0; teleportBounceTimer = 0;
+            wantsToCrouch = false;
             bonusSpawns = {
                 teleportGold: { '3000': 0, '9000': 0, '15000': 0 },
                 bonusPoints: { '3000': 0, '6000': 0, '9000': 0, '12000': 0, '15000': 0, '18000': 0, '21000': 0 }
@@ -1061,55 +1035,55 @@
             if (fromSpacebar) {
                 startGame();
             } else {
-                gameState.gameStarted = false;
+                gameStarted = false;
             }
         }
 
         // --- Game/Menu Loops ---
         function updateMenu(deltaTime) {
-            timers.menuFrameTimer += deltaTime;
+            menuFrameTimer += deltaTime;
             let stateData;
-            if (uiState.menuState === 'intro') stateData = animationStates.menuIntro;
-            else if (uiState.menuState === 'loop') stateData = animationStates.menuLoop;
-            else if (uiState.menuState === 'outro') stateData = animationStates.menuOutro;
+            if (menuState === 'intro') stateData = animationStates.menuIntro;
+            else if (menuState === 'loop') stateData = animationStates.menuLoop;
+            else if (menuState === 'outro') stateData = animationStates.menuOutro;
 
-            if (stateData && timers.menuFrameTimer >= stateData.frameDuration) {
-                uiState.menuFrame++;
-                timers.menuFrameTimer = 0;
+            if (stateData && menuFrameTimer >= stateData.frameDuration) {
+                menuFrame++;
+                menuFrameTimer = 0;
                 
-                if (uiState.menuState === 'intro' && uiState.menuFrame >= stateData.frames) {
-                    uiState.showPreMenuBehindIntro = false;
-                    if (gameState.isResetting) {
+                if (menuState === 'intro' && menuFrame >= stateData.frames) {
+                    showPreMenuBehindIntro = false;
+                    if (isResetting) {
                         fullGameReset();
                     } else {
-                        uiState.menuState = 'loop';
-                        uiState.menuFrame = 0;
+                        menuState = 'loop';
+                        menuFrame = 0;
                     }
-                } else if (uiState.menuState === 'loop' && uiState.menuFrame >= stateData.frames) {
-                    uiState.menuFrame = 0;
-                } else if (uiState.menuState === 'outro' && uiState.menuFrame >= stateData.frames) {
-                    uiState.menuState = 'inactive';
+                } else if (menuState === 'loop' && menuFrame >= stateData.frames) {
+                    menuFrame = 0;
+                } else if (menuState === 'outro' && menuFrame >= stateData.frames) {
+                    menuState = 'inactive';
                 }
             }
         }
 
         function startGame() {
-            gameState.gameStarted = true;
+            gameStarted = true;
             sounds.start.play();
             sounds.roll.play();
             sounds.track.currentTime = 0;
             sounds.track.play();
-            collections.effectsArray.push(new RunCloud());
+            effectsArray.push(new RunCloud());
         }
         
         // --- Main Update and Draw Functions ---
         function update(deltaTime) {
             // This needs to update every frame for the portrait mode message
-            timers.rotateFrameTimer += deltaTime;
+            rotateFrameTimer += deltaTime;
             const rotateData = animationStates.rotate;
-            if (rotateData && timers.rotateFrameTimer >= rotateData.frameDuration) {
-                uiState.rotateFrame = (uiState.rotateFrame + 1) % rotateData.frames;
-                timers.rotateFrameTimer = 0;
+            if (rotateData && rotateFrameTimer >= rotateData.frameDuration) {
+                rotateFrame = (rotateFrame + 1) % rotateData.frames;
+                rotateFrameTimer = 0;
             }
 
             // UI Button animations should always update
@@ -1119,24 +1093,24 @@
             volBtn.frameTimer += deltaTime;
             const volAnimData = animationStates.volume;
             if (volAnimData && volBtn.frameTimer >= volAnimData.frameDuration) {
-                if (uiState.isMuted && volBtn.frame > 0) {
+                if (isMuted && volBtn.frame > 0) {
                     volBtn.frame--;
                     volBtn.frameTimer = 0;
-                } else if (!uiState.isMuted && volBtn.frame < volAnimData.frames - 1) {
+                } else if (!isMuted && volBtn.frame < volAnimData.frames - 1) {
                     volBtn.frame++;
                     volBtn.frameTimer = 0;
                 }
             }
 
             // Scroll button slide animation
-            if (uiState.menuState === 'intro' || uiState.menuState === 'loop') {
+            if (menuState === 'intro' || menuState === 'loop') {
                 scrollButton.y += (scrollButton.targetY - scrollButton.y) * 0.05;
             } else {
                 scrollButton.y += (canvas.height + 50 - scrollButton.y) * 0.05;
             }
 
-            if (uiState.menuState === 'loop' && !scrollButton.isAnimating && !uiState.isInfoBoxVisible) {
-                const pulse = 1 + Math.sin(timers.lastTime / 500) * 0.05;
+            if (menuState === 'loop' && !scrollButton.isAnimating && !isInfoBoxVisible) {
+                const pulse = 1 + Math.sin(lastTime / 500) * 0.05;
                 scrollButton.scale = pulse;
             } else {
                 scrollButton.scale = 1;
@@ -1156,94 +1130,94 @@
                 }
             }
 
-            if (uiState.menuState === 'pre-menu' || uiState.showPreMenuBehindIntro) {
-                timers.preMenuFrameTimer += deltaTime;
+            if (menuState === 'pre-menu' || showPreMenuBehindIntro) {
+                preMenuFrameTimer += deltaTime;
                 const preMenuAnimation = isMobile ? animationStates.tap : animationStates.space;
-                if (preMenuAnimation && timers.preMenuFrameTimer >= preMenuAnimation.frameDuration) {
-                    uiState.preMenuFrame = (uiState.preMenuFrame + 1) % preMenuAnimation.frames;
-                    timers.preMenuFrameTimer = 0;
+                if (preMenuAnimation && preMenuFrameTimer >= preMenuAnimation.frameDuration) {
+                    preMenuFrame = (preMenuFrame + 1) % preMenuAnimation.frames;
+                    preMenuFrameTimer = 0;
                 }
-                if (!uiState.showPreMenuBehindIntro) return;
+                if (!showPreMenuBehindIntro) return;
             }
 
-            if (gameState.isRestarting) {
-                gameState.restartFadeAmount += 2 * gameState.fadeDirection * deltaTime;
-                if (gameState.restartFadeAmount >= 1 && gameState.fadeDirection === 1) {
-                    gameState.fadeDirection = -1;
+            if (isRestarting) {
+                restartFadeAmount += 2 * fadeDirection * deltaTime;
+                if (restartFadeAmount >= 1 && fadeDirection === 1) {
+                    fadeDirection = -1;
                     fullGameReset(true); 
                 }
-                if (gameState.restartFadeAmount <= 0 && gameState.fadeDirection === -1) {
-                    gameState.isRestarting = false;
-                    gameState.fadeDirection = 1;
+                if (restartFadeAmount <= 0 && fadeDirection === -1) {
+                    isRestarting = false;
+                    fadeDirection = 1;
                 }
             }
             
-            if (gameState.isResetting || gameState.isRestartButtonAnimating) {
+            if (isResetting || isRestartButtonAnimating) {
                  updateMenu(deltaTime);
             }
 
-            if ((uiState.menuState === 'intro' || uiState.menuState === 'loop' || uiState.menuState === 'outro') && !gameState.isResetting && !gameState.isRestartButtonAnimating) {
+            if ((menuState === 'intro' || menuState === 'loop' || menuState === 'outro') && !isResetting && !isRestartButtonAnimating) {
                 updateMenu(deltaTime);
             }
 
-            if (!gameState.gameStarted) {
-                if (gameState.isRestartButtonAnimating) {
+            if (!gameStarted) {
+                if (isRestartButtonAnimating) {
                      //fallthrough to button animation logic
                 } else {
                     return;
                 }
             }
             
-            if (gameState.gameStarted) {
+            if (gameStarted) {
                 handleScenery(deltaTime);
                 handleObstacles(deltaTime);
                 checkCollisionsAndScore();
                 
-                for (let i = collections.floatingScores.length - 1; i >= 0; i--) {
-                    collections.floatingScores[i].update(deltaTime);
-                    if (collections.floatingScores[i].opacity <= 0) {
-                        collections.floatingScores.splice(i, 1);
+                for (let i = floatingScores.length - 1; i >= 0; i--) {
+                    floatingScores[i].update(deltaTime);
+                    if (floatingScores[i].opacity <= 0) {
+                        floatingScores.splice(i, 1);
                     }
                 }
 
-                if (gameState.gameOver || gameState.gameWon) {
-                    if (gameState.gameSpeed > 0) gameState.gameSpeed -= 800 * deltaTime;
-                    else gameState.gameSpeed = 0;
-                    collections.effectsArray.forEach(effect => { if(effect instanceof RunCloud) effect.startFading() });
-                    if (gameState.gameOver && gameState.gameOverFade < 1) gameState.gameOverFade += 2 * deltaTime;
+                if (gameOver || gameWon) {
+                    if (gameSpeed > 0) gameSpeed -= 800 * deltaTime;
+                    else gameSpeed = 0;
+                    effectsArray.forEach(effect => { if(effect instanceof RunCloud) effect.startFading() });
+                    if (gameOver && gameOverFade < 1) gameOverFade += 2 * deltaTime;
                 } else {
-                    if(!gameState.isRestarting) gameState.gameSpeed += speedIncreaseRate * 60 * deltaTime;
+                    if(!isRestarting) gameSpeed += speedIncreaseRate * 60 * deltaTime;
                 }
                 
-                if (inputState.isHoldingTouch && gameState.gameStarted && !player.isJumping) {
-                    const holdDuration = Date.now() - timers.touchStartTime;
+                if (isHoldingTouch && gameStarted && !player.isJumping) {
+                    const holdDuration = Date.now() - touchStartTime;
                     if (holdDuration > 200) {
                         handleCrouchStart();
                     }
                 }
 
-                if (timers.scoreBounceTimer > 0) timers.scoreBounceTimer -= deltaTime;
-                if (timers.teleportBounceTimer > 0) timers.teleportBounceTimer -= deltaTime;
+                if (scoreBounceTimer > 0) scoreBounceTimer -= deltaTime;
+                if (teleportBounceTimer > 0) teleportBounceTimer -= deltaTime;
                 
                 const transitionSpeed = 1 / 4;
-                if (gameState.inversionAmount < gameState.inversionTarget) {
-                    gameState.inversionAmount = Math.min(gameState.inversionTarget, gameState.inversionAmount + transitionSpeed * deltaTime);
-                } else if (gameState.inversionAmount > gameState.inversionTarget) {
-                    gameState.inversionAmount = Math.max(gameState.inversionTarget, gameState.inversionAmount - transitionSpeed * deltaTime);
+                if (inversionAmount < inversionTarget) {
+                    inversionAmount = Math.min(inversionTarget, inversionAmount + transitionSpeed * deltaTime);
+                } else if (inversionAmount > inversionTarget) {
+                    inversionAmount = Math.max(inversionTarget, inversionAmount - transitionSpeed * deltaTime);
                 }
-                gameState.groundX -= gameState.gameSpeed * deltaTime;
-                gameState.bg1X -= gameState.gameSpeed * 0.1 * deltaTime;
-                gameState.bg2X -= gameState.gameSpeed * 0.03 * deltaTime;
-                gameState.grassX -= gameState.gameSpeed * GRASS_SPEED_MODIFIER * deltaTime;
+                groundX -= gameSpeed * deltaTime;
+                bg1X -= gameSpeed * 0.1 * deltaTime;
+                bg2X -= gameSpeed * 0.03 * deltaTime;
+                grassX -= gameSpeed * GRASS_SPEED_MODIFIER * deltaTime;
                 
                 const bg1_scaledWidth = images.background1 ? images.background1.width * BG1_SCALE : 0;
                 const bg2_scaledWidth = images.background2 ? images.background2.width * BG2_SCALE : 0;
                 const grass_scaledWidth = images.grass ? images.grass.width * GRASS_SCALE : 0;
 
-                if (images.ground && gameState.groundX <= -images.ground.width) gameState.groundX += images.ground.width;
-                if (bg1_scaledWidth > 0 && gameState.bg1X <= -bg1_scaledWidth) gameState.bg1X += bg1_scaledWidth;
-                if (bg2_scaledWidth > 0 && gameState.bg2X <= -bg2_scaledWidth) gameState.bg2X += bg2_scaledWidth;
-                if (grass_scaledWidth > 0 && gameState.grassX <= -grass_scaledWidth) gameState.grassX += grass_scaledWidth;
+                if (images.ground && groundX <= -images.ground.width) groundX += images.ground.width;
+                if (bg1_scaledWidth > 0 && bg1X <= -bg1_scaledWidth) bg1X += bg1_scaledWidth;
+                if (bg2_scaledWidth > 0 && bg2X <= -bg2_scaledWidth) bg2X += bg2_scaledWidth;
+                if (grass_scaledWidth > 0 && grassX <= -grass_scaledWidth) grassX += grass_scaledWidth;
                 
                 if (player.isJumping) {
                     player.velocityY += GRAVITY * deltaTime;
@@ -1252,13 +1226,13 @@
                 if (player.y > PLAYER_GROUND_LEVEL) {
                     player.y = PLAYER_GROUND_LEVEL;
                     if(player.isJumping) {
-                        collections.effectsArray.forEach(effect => { if(effect instanceof RunCloud) effect.activate() });
+                        effectsArray.forEach(effect => { if(effect instanceof RunCloud) effect.activate() });
                     }
                     player.isJumping = false;
                     player.velocityY = 0;
-                    if (inputState.wantsToCrouch) {
+                    if (wantsToCrouch) {
                         handleCrouchStart();
-                    } else if (!player.isCrouching && !gameState.gameOver) { 
+                    } else if (!player.isCrouching && !gameOver) { 
                         player.state = 'run'; 
                     }
                 }
@@ -1267,7 +1241,7 @@
                 if (stateData) {
                     let dynamicFrameDuration = stateData.frameDuration;
                     if (player.state === 'run' || player.state === 'crouch') {
-                        dynamicFrameDuration = Math.max(0.02, stateData.frameDuration - (gameState.gameSpeed / 10000));
+                        dynamicFrameDuration = Math.max(0.02, stateData.frameDuration - (gameSpeed / 10000));
                     }
                     if (player.frameTimer >= dynamicFrameDuration) {
                         if (player.state === 'fall') {
@@ -1278,25 +1252,25 @@
                         player.frameTimer = 0;
                     }
                 }
-                collections.effectsArray.forEach(effect => effect.update(deltaTime));
-                collections.effectsArray = collections.effectsArray.filter(effect => !effect.markedForDeletion);
+                effectsArray.forEach(effect => effect.update(deltaTime));
+                effectsArray = effectsArray.filter(effect => !effect.markedForDeletion);
             }
 
-            if (gameState.canRestart || gameState.isRestartButtonAnimating) {
+            if (canRestart || isRestartButtonAnimating) {
                 restartButton.frameTimer += deltaTime;
-                if ((restartButton.isHovered && !isMobile) || gameState.isRestartButtonAnimating) {
+                if ((restartButton.isHovered && !isMobile) || isRestartButtonAnimating) {
                     const stateData = animationStates.button;
                     if (stateData && restartButton.frameTimer >= stateData.frameDuration) {
                         restartButton.frameTimer = 0;
-                        if (gameState.isRestartButtonAnimating) {
+                        if (isRestartButtonAnimating) {
                             restartButton.frame++;
                             if (restartButton.frame >= stateData.frames) {
-                                gameState.isRestartButtonAnimating = false;
+                                isRestartButtonAnimating = false;
                                 restartButton.frame = 0;
-                                gameState.isResetting = true;
-                                uiState.menuState = 'intro';
-                                uiState.menuFrame = 0;
-                                timers.menuFrameTimer = 0;
+                                isResetting = true;
+                                menuState = 'intro';
+                                menuFrame = 0;
+                                menuFrameTimer = 0;
                                 sounds.gateClose.play();
                                 if(sounds.gecko) sounds.gecko.pause();
                             }
@@ -1313,16 +1287,16 @@
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            if (uiState.menuState === 'pre-menu') {
+            if (menuState === 'pre-menu') {
                 drawPreMenu();
-            } else if (gameState.isResetting || gameState.isRestartButtonAnimating) {
+            } else if (isResetting || isRestartButtonAnimating) {
                 drawGameWorld(); 
                 drawEndScreens(); 
-                if (!gameState.isRestartButtonAnimating) {
+                if (!isRestartButtonAnimating) {
                     drawMenu(); 
                 }
-            } else if (uiState.menuState === 'intro' || uiState.menuState === 'loop') {
-                if (uiState.showPreMenuBehindIntro) {
+            } else if (menuState === 'intro' || menuState === 'loop') {
+                if (showPreMenuBehindIntro) {
                     drawPreMenu();
                 }
                 drawMenu();
@@ -1330,27 +1304,27 @@
                 drawGameWorld();
                 drawUI();
                 drawEndScreens();
-                if (uiState.menuState === 'outro') {
+                if (menuState === 'outro') {
                     drawMenu(); 
                 }
             }
 
-            if (uiState.menuState === 'intro' || uiState.menuState === 'loop' || uiState.menuState === 'outro') {
+            if (menuState === 'intro' || menuState === 'loop' || menuState === 'outro') {
                 drawScrollButton();
             }
 
-            if (uiState.menuState === 'loop') {
+            if (menuState === 'loop') {
                  drawInfoBox();
             }
 
 
-            if ((gameState.canRestart && (gameState.gameOver || gameState.gameWon)) || gameState.isRestartButtonAnimating) {
+            if ((canRestart && (gameOver || gameWon)) || isRestartButtonAnimating) {
                 drawRestartButton();
             }
             drawVolumeButton();
 
-            if (gameState.isRestarting) {
-                ctx.fillStyle = `rgba(255, 255, 255, ${gameState.restartFadeAmount})`;
+            if (isRestarting) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${restartFadeAmount})`;
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
             }
         }
@@ -1358,32 +1332,32 @@
         // --- Drawing Sub-functions ---
         function drawGameWorld() {
              ctx.save();
-             ctx.filter = `invert(${gameState.inversionAmount * 100}%)`;
+             ctx.filter = `invert(${inversionAmount * 100}%)`;
              ctx.fillStyle = '#f0f0f0';
              ctx.fillRect(0, 0, canvas.width, canvas.height);
              if (images.background2 && images.background2.complete && images.background2.naturalWidth > 0) {
                  const scaledWidth = images.background2.width * BG2_SCALE;
                  const scaledHeight = (images.background2.naturalHeight / images.background2.naturalWidth) * scaledWidth;
-                 ctx.drawImage(images.background2, Math.floor(gameState.bg2X), BG2_Y_POS, scaledWidth, scaledHeight);
-                 ctx.drawImage(images.background2, Math.floor(gameState.bg2X + scaledWidth) - 1, BG2_Y_POS, scaledWidth, scaledHeight);
-                 ctx.drawImage(images.background2, Math.floor(gameState.bg2X + scaledWidth * 2) - 2, BG2_Y_POS, scaledWidth, scaledHeight);
+                 ctx.drawImage(images.background2, Math.floor(bg2X), BG2_Y_POS, scaledWidth, scaledHeight);
+                 ctx.drawImage(images.background2, Math.floor(bg2X + scaledWidth) - 1, BG2_Y_POS, scaledWidth, scaledHeight);
+                 ctx.drawImage(images.background2, Math.floor(bg2X + scaledWidth * 2) - 2, BG2_Y_POS, scaledWidth, scaledHeight);
              }
-             collections.sceneryArray.forEach(item => item.draw());
+             sceneryArray.forEach(item => item.draw());
              if (images.background1 && images.background1.complete && images.background1.naturalWidth > 0) {
                  const scaledWidth = images.background1.width * BG1_SCALE;
                  const scaledHeight = (images.background1.naturalHeight / images.background1.naturalWidth) * scaledWidth;
-                 ctx.drawImage(images.background1, Math.floor(gameState.bg1X), BG1_Y_POS, scaledWidth, scaledHeight);
-                 ctx.drawImage(images.background1, Math.floor(gameState.bg1X + scaledWidth) - 1, BG1_Y_POS, scaledWidth, scaledHeight);
-                 ctx.drawImage(images.background1, Math.floor(gameState.bg1X + scaledWidth * 2) - 2, BG1_Y_POS, scaledWidth, scaledHeight);
+                 ctx.drawImage(images.background1, Math.floor(bg1X), BG1_Y_POS, scaledWidth, scaledHeight);
+                 ctx.drawImage(images.background1, Math.floor(bg1X + scaledWidth) - 1, BG1_Y_POS, scaledWidth, scaledHeight);
+                 ctx.drawImage(images.background1, Math.floor(bg1X + scaledWidth * 2) - 2, BG1_Y_POS, scaledWidth, scaledHeight);
              }
              if (images.ground && images.ground.complete && images.ground.naturalWidth > 0) {
                  const groundY = canvas.height - GROUND_HEIGHT_PHYSICS + VISUAL_GROUND_Y_OFFSET;
-                 ctx.drawImage(images.ground, Math.floor(gameState.groundX), groundY, images.ground.width, VISUAL_GROUND_HEIGHT);
-                 ctx.drawImage(images.ground, Math.floor(gameState.groundX + images.ground.width) -1, groundY, images.ground.width, VISUAL_GROUND_HEIGHT);
-                 ctx.drawImage(images.ground, Math.floor(gameState.groundX + images.ground.width * 2) -2, groundY, images.ground.width, VISUAL_GROUND_HEIGHT);
+                 ctx.drawImage(images.ground, Math.floor(groundX), groundY, images.ground.width, VISUAL_GROUND_HEIGHT);
+                 ctx.drawImage(images.ground, Math.floor(groundX + images.ground.width) -1, groundY, images.ground.width, VISUAL_GROUND_HEIGHT);
+                 ctx.drawImage(images.ground, Math.floor(groundX + images.ground.width * 2) -2, groundY, images.ground.width, VISUAL_GROUND_HEIGHT);
              }
-             collections.obstaclesArray.forEach(obstacle => obstacle.draw());
-             collections.effectsArray.forEach(effect => effect.draw());
+             obstaclesArray.forEach(obstacle => obstacle.draw());
+             effectsArray.forEach(effect => effect.draw());
              if (!player.isTeleporting) {
                  const playerStateData = animationStates[player.state];
                  if (images[player.state] && images[player.state].complete && images[player.state].naturalWidth > 0) {
@@ -1406,27 +1380,27 @@
              if (images.grass && images.grass.complete && images.grass.naturalWidth > 0) {
                  const scaledWidth = images.grass.width * GRASS_SCALE;
                  const scaledHeight = images.grass.height * GRASS_SCALE;
-                 ctx.drawImage(images.grass, Math.floor(gameState.grassX), GRASS_Y_POS, scaledWidth, scaledHeight);
-                 ctx.drawImage(images.grass, Math.floor(gameState.grassX + scaledWidth) - 1, GRASS_Y_POS, scaledWidth, scaledHeight);
-                 ctx.drawImage(images.grass, Math.floor(gameState.grassX + scaledWidth * 2) - 2, GRASS_Y_POS, scaledWidth, scaledHeight);
+                 ctx.drawImage(images.grass, Math.floor(grassX), GRASS_Y_POS, scaledWidth, scaledHeight);
+                 ctx.drawImage(images.grass, Math.floor(grassX + scaledWidth) - 1, GRASS_Y_POS, scaledWidth, scaledHeight);
+                 ctx.drawImage(images.grass, Math.floor(grassX + scaledWidth * 2) - 2, GRASS_Y_POS, scaledWidth, scaledHeight);
              }
              
-             collections.floatingScores.forEach(fs => fs.draw());
+             floatingScores.forEach(fs => fs.draw());
              
              ctx.restore();
         }
 
         function drawUI() {
             ctx.save();
-            if (gameState.gameStarted) timers.uiFadeInTimer = Math.min(1, timers.uiFadeInTimer + (1/60));
-            ctx.globalAlpha = timers.uiFadeInTimer;
+            if (gameStarted) uiFadeInTimer = Math.min(1, uiFadeInTimer + (1/60));
+            ctx.globalAlpha = uiFadeInTimer;
             ctx.textAlign = 'right';
-            const scoreNumberText = gameState.score.toString();
+            const scoreNumberText = score.toString();
             
             let scoreFontSize = 30;
             let scoreLabelScale = 1.0;
-            if (timers.scoreBounceTimer > 0) {
-                const bounceScale = 1 + Math.sin(timers.scoreBounceTimer * (1/0.5) * Math.PI) * 0.5;
+            if (scoreBounceTimer > 0) {
+                const bounceScale = 1 + Math.sin(scoreBounceTimer * (1/0.5) * Math.PI) * 0.5;
                 scoreFontSize *= bounceScale;
                 ctx.fillStyle = 'red';
             } else {
@@ -1447,14 +1421,14 @@
             ctx.fillText(scoreLabel, scoreX, 40);
 
             ctx.textAlign = 'left';
-            if (gameState.teleportCharges > 0 && images.teleportLogo && images.teleportLogo.complete && images.teleportLogo.naturalWidth > 0) {
+            if (teleportCharges > 0 && images.teleportLogo && images.teleportLogo.complete && images.teleportLogo.naturalWidth > 0) {
                 ctx.drawImage(images.teleportLogo, 20, 15, 40, 40);
 
                 let teleportFontSize = 30;
-                if(timers.teleportBounceTimer > 0) {
-                    const bounceScale = 1 + Math.sin(timers.teleportBounceTimer * Math.PI) * 0.5;
+                if(teleportBounceTimer > 0) {
+                    const bounceScale = 1 + Math.sin(teleportBounceTimer * Math.PI) * 0.5;
                     teleportFontSize *= bounceScale;
-                    ctx.fillStyle = `hsl(${ (1 - timers.teleportBounceTimer) * 360 }, 100%, 50%)`;
+                    ctx.fillStyle = `hsl(${ (1 - teleportBounceTimer) * 360 }, 100%, 50%)`;
                 } else {
                     ctx.fillStyle = 'black';
                 }
@@ -1464,30 +1438,30 @@
                 const x_width = ctx.measureText('x').width;
 
                 ctx.font = `bold ${teleportFontSize}px "Segoe UI"`;
-                ctx.fillText(gameState.teleportCharges, 65 + x_width, 45);
+                ctx.fillText(teleportCharges, 65 + x_width, 45);
             }
             ctx.restore();
             ctx.textAlign = 'center';
         }
 
         function drawEndScreens() {
-            if (gameState.gameOver) {
-                ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * gameState.gameOverFade})`;
+            if (gameOver) {
+                ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * gameOverFade})`;
                 ctx.font = '70px Amanojaku';
                 ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
-                if (gameState.canRestart) {
-                    ctx.fillStyle = `rgba(0, 0, 0, ${1 * gameState.gameOverFade})`;
+                if (canRestart) {
+                    ctx.fillStyle = `rgba(0, 0, 0, ${1 * gameOverFade})`;
                     ctx.font = 'bold 20px "Segoe UI"';
                     ctx.fillText(isMobile ? 'Tap to restart' : 'press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
                 }
             }
-            if (gameState.gameWon) {
+            if (gameWon) {
                 ctx.fillStyle = 'rgba(255, 255, 255, 1)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.fillStyle = 'black';
                 ctx.font = '50px Amanojaku';
                 ctx.fillText('YOU WIN', canvas.width / 2, canvas.height / 2 - 20);
-                if (gameState.canRestart) {
+                if (canRestart) {
                     ctx.font = 'bold 20px "Segoe UI"';
                     ctx.fillText(isMobile ? 'Tap to restart' : 'press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
                 }
@@ -1525,8 +1499,8 @@
                 const preMenuImage = isMobile ? images.tap : images.space;
                 const stateData = isMobile ? animationStates.tap : animationStates.space;
                 const columns = stateData.columns;
-                const frameX = uiState.preMenuFrame % columns;
-                const frameY = Math.floor(uiState.preMenuFrame / columns);
+                const frameX = preMenuFrame % columns;
+                const frameY = Math.floor(preMenuFrame / columns);
                 const sourceX = frameX * stateData.spriteWidth;
                 const sourceY = frameY * stateData.spriteHeight;
                 ctx.drawImage(preMenuImage, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, 0, 0, canvas.width, canvas.height);
@@ -1536,21 +1510,21 @@
         function drawMenu() {
             let currentImage;
             let stateData;
-            if (uiState.menuState === 'intro') {
+            if (menuState === 'intro') {
                 currentImage = images.menuIntro;
                 stateData = animationStates.menuIntro;
-            } else if (uiState.menuState === 'loop') {
+            } else if (menuState === 'loop') {
                 currentImage = images.menuLoop;
                 stateData = animationStates.menuLoop;
-            } else if (uiState.menuState === 'outro') {
+            } else if (menuState === 'outro') {
                 currentImage = images.menuOutro;
                 stateData = animationStates.menuOutro;
             }
 
             if (currentImage && currentImage.complete && currentImage.naturalWidth > 0) {
                 const columns = stateData.columns;
-                const frameX = uiState.menuFrame % columns;
-                const frameY = Math.floor(uiState.menuFrame / columns);
+                const frameX = menuFrame % columns;
+                const frameY = Math.floor(menuFrame / columns);
                 const sourceX = frameX * stateData.spriteWidth;
                 const sourceY = frameY * stateData.spriteHeight;
                 ctx.drawImage(currentImage, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, 0, 0, canvas.width, canvas.height);
@@ -1577,7 +1551,7 @@
         }
 
         function drawInfoBox() {
-            if (uiState.isInfoBoxVisible) {
+            if (isInfoBoxVisible) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
                 const boxWidth = canvas.width * 0.8;
                 const boxHeight = canvas.height * 0.8;
@@ -1596,8 +1570,8 @@
             if (images.rotate && images.rotate.complete && images.rotate.naturalWidth > 0) {
                 const stateData = animationStates.rotate;
                 const columns = stateData.columns;
-                const frameX = uiState.rotateFrame % columns;
-                const frameY = Math.floor(uiState.rotateFrame / columns);
+                const frameX = rotateFrame % columns;
+                const frameY = Math.floor(rotateFrame / columns);
                 const sourceX = frameX * stateData.spriteWidth;
                 const sourceY = frameY * stateData.spriteHeight;
                 rotateCtx.clearRect(0,0, rotateCanvas.width, rotateCanvas.height);
@@ -1636,16 +1610,16 @@
             scrollButton.x = canvas.width - 130;
             scrollButton.targetY = canvas.height - 130;
 
-            if (uiState.menuState === 'pre-menu') {
+            if (menuState === 'pre-menu') {
                 scrollButton.y = canvas.height + 50;
             }
         }
 
         // --- Game Initialization ---
         function mainLoop(currentTime) {
-            if (!timers.lastTime) timers.lastTime = currentTime;
-            const deltaTime = (currentTime - timers.lastTime) / 1000;
-            timers.lastTime = currentTime;
+            if (!lastTime) lastTime = currentTime;
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
 
             update(deltaTime);
             draw();
@@ -1668,18 +1642,15 @@
             repositionUIElements();
             window.addEventListener('resize', repositionUIElements);
 
-            timers.lastTime = performance.now();
-            mainLoop(timers.lastTime);
+            lastTime = performance.now();
+            mainLoop(lastTime);
         }
 
         preloadAssets();
         initialDraw();
 
-        // This prevents the default right-click context menu from appearing.
-        // It's a simple deterrent but can be easily bypassed by users who know how to open developer tools directly.
-        document.addEventListener('contextmenu', event => event.preventDefault());
-
     </script>
 </body>
 </html>
+
 
