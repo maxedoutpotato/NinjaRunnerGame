@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> A fast-paced, 2D endless runner game built with pure JavaScript, HTML, and CSS. Dodge obstacles, collect power-ups, and share your high score in this challenging ninja adventure! All art, animations, and sound were created from scratch.
+> A fast-paced, 2D endless runner game built with pure JavaScript, HTML, and CSS. Dodge obstacles, collect power-ups, and share your high score in this challenging ninja adventure! All art, animations, and sound were created from scratch. Some sound effects are from the internet.
 
 ## 🎮 Play the Live Demo!
 
