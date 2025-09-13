@@ -181,6 +181,8 @@
         let isMuted = false;
         let showPreMenuBehindIntro = false;
         let isInfoBoxVisible = false;
+        let isShareMenuOpen = false;
+        let gameOverTextFade = 1;
 
         // --- Bonus Spawn Tracking ---
         let bonusSpawns = {
@@ -221,6 +223,8 @@
             x: 0, y: 0, width: 80, height: 80,
             frame: 0, frameTimer: 0, scale: 1
         };
+        let socialButtons = [];
+
 
         // --- Animation Data ---
         const animationStates = {
@@ -241,7 +245,8 @@
             space: { frames: 28, columns: 4, frameDuration: 0.08, spriteWidth: 500, spriteHeight: 250 },
             scroll: { frames: 14, columns: 4, frameDuration: 0.05, spriteWidth: 120, spriteHeight: 120 },
             volume: { frames: 6, columns: 3, frameDuration: 0.05, spriteWidth: 100, spriteHeight: 100 },
-            share: { frames: 9, columns: 3, frameDuration: 0.08, spriteWidth: 100, spriteHeight: 100 }
+            share: { frames: 9, columns: 3, frameDuration: 0.08, spriteWidth: 100, spriteHeight: 100 },
+            shareIcon: { frames: 9, columns: 3, frameDuration: 0.08, spriteWidth: 100, spriteHeight: 100 }
         };
 
         // --- Asset Loading ---
@@ -276,7 +281,12 @@
             carrot: 'Assets/Obstacles/Carrot.png',
             scroll: 'Assets/Menu/Scroll.png',
             volume: 'Assets/Menu/Volume.png',
-            share: 'Assets/Menu/Share.png'
+            share: 'Assets/Menu/Share.png',
+            shareTwitter: 'Assets/Menu/X.png',
+            shareWhatsApp: 'Assets/Menu/WhatsApp.png',
+            shareFacebook: 'Assets/Menu/Facebook.png',
+            shareReddit: 'Assets/Menu/Reddit.png',
+            shareTelegram: 'Assets/Menu/Telegram.png'
         };
         const soundSources = {
             intro: 'Audio/Intro.mp3',
@@ -324,6 +334,34 @@
             const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}&hashtags=${hashtags}`;
             window.open(twitterUrl, '_blank');
         }
+
+        function shareOnFacebook(score) {
+            const url = 'https://maxedoutpotato.github.io/NinjaRunnerGame/';
+            const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+            window.open(facebookUrl, '_blank');
+        }
+
+        function shareOnReddit(score) {
+            const text = `I just scored ${score} in Ninja Runner! Can you beat my high score?`;
+            const url = 'https://maxedoutpotato.github.io/NinjaRunnerGame/';
+            const redditUrl = `https://www.reddit.com/submit?url=${encodeURIComponent(url)}&title=${encodeURIComponent(text)}`;
+            window.open(redditUrl, '_blank');
+        }
+
+        function shareOnWhatsApp(score) {
+            const text = `I just scored ${score} in Ninja Runner! Can you beat my high score?`;
+            const url = 'https://maxedoutpotato.github.io/NinjaRunnerGame/';
+            const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(text + ' ' + url)}`;
+            window.open(whatsappUrl, '_blank');
+        }
+
+        function shareOnTelegram(score) {
+            const text = `I just scored ${score} in Ninja Runner! Can you beat my high score?`;
+            const url = 'https://maxedoutpotato.github.io/NinjaRunnerGame/';
+            const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
+            window.open(telegramUrl, '_blank');
+        }
+
 
         // --- Input Handling ---
         function handleJump() {
@@ -495,12 +533,27 @@
                 return true;
             }
 
+            if (isShareMenuOpen) {
+                for (const btn of socialButtons) {
+                    const padding = isMobile ? 20 : 10;
+                    if (btn.visible && pos.x >= btn.x - padding && pos.x <= btn.x + btn.width + padding &&
+                        pos.y >= btn.y - padding && pos.y <= btn.y + btn.height + padding) {
+                        btn.action(score);
+                        return true;
+                    }
+                }
+            }
+
             const shareBtn = shareButton;
             const shareBtnPadding = isMobile ? 20 : 10;
-            if ((gameOver || gameWon) && canRestart &&
+            if ((gameOver || gameWon) && canRestart && !isShareMenuOpen &&
                 pos.x >= shareBtn.x - shareBtnPadding && pos.x <= shareBtn.x + shareBtn.width + shareBtnPadding &&
                 pos.y >= shareBtn.y - shareBtnPadding && pos.y <= shareBtn.y + shareBtn.height + shareBtnPadding) {
-                shareOnTwitter(score);
+                isShareMenuOpen = true;
+                socialButtons.forEach((btn, index) => {
+                    btn.isAnimatingIn = true;
+                    btn.animationDelay = index * 0.1; 
+                });
                 return true; 
             }
 
@@ -1048,6 +1101,13 @@
             scoreMilestone = 1; teleportCharges = 0; inversionAmount = 0; inversionTarget = 0;
             scoreBounceTimer = 0; teleportBounceTimer = 0;
             wantsToCrouch = false;
+            isShareMenuOpen = false;
+            gameOverTextFade = 1;
+            socialButtons.forEach(btn => {
+                btn.visible = false;
+                btn.scale = 0;
+                btn.isAnimatingIn = false;
+            });
             bonusSpawns = {
                 teleportGold: { '3000': 0, '9000': 0, '15000': 0 },
                 bonusPoints: { '3000': 0, '6000': 0, '9000': 0, '12000': 0, '15000': 0, '18000': 0, '21000': 0 }
@@ -1183,7 +1243,41 @@
                 updateMenu(deltaTime);
             }
 
-            if ((gameOver || gameWon) && canRestart) {
+            if (isShareMenuOpen) {
+                if (gameOverTextFade > 0) {
+                    gameOverTextFade -= 2 * deltaTime;
+                }
+                shareButton.scale = 1.5; // Minimum scale
+
+                socialButtons.forEach(btn => {
+                    if (btn.isAnimatingIn) {
+                        if (btn.animationDelay > 0) {
+                            btn.animationDelay -= deltaTime;
+                        } else {
+                            btn.visible = true;
+                            // Bounce effect
+                            if (btn.scale < 1) {
+                                btn.scale += (1.2 - btn.scale) * 0.2; // Overshoot
+                            } else {
+                                btn.scale += (1 - btn.scale) * 0.1; // Settle
+                            }
+                            if (Math.abs(1 - btn.scale) < 0.01) {
+                                btn.scale = 1;
+                                btn.isAnimatingIn = false;
+                            }
+                        }
+                    }
+                    if(btn.visible){
+                        btn.frameTimer += deltaTime;
+                        const iconAnimData = animationStates.shareIcon;
+                        if (iconAnimData && btn.frameTimer >= iconAnimData.frameDuration) {
+                            btn.frame = (btn.frame + 1) % iconAnimData.frames;
+                            btn.frameTimer = 0;
+                        }
+                    }
+                });
+
+            } else if ((gameOver || gameWon) && canRestart) {
                 const pulse = 1.7 + Math.sin(lastTime / 300) * 0.2;
                 shareButton.scale = pulse;
 
@@ -1487,26 +1581,35 @@
             if (gameOver) {
                 ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * gameOverFade})`;
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, gameOverTextFade);
                 ctx.fillStyle = `rgba(255, 255, 255, ${0.7 * gameOverFade})`;
                 ctx.font = '70px Amanojaku';
                 ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
+                ctx.restore();
+
                 if (canRestart) {
                     ctx.fillStyle = `rgba(255, 255, 255, ${1 * gameOverFade})`;
                     ctx.font = 'bold 20px "Segoe UI"';
                     ctx.fillText(isMobile ? 'Tap to restart' : 'press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
                     drawShareButton();
+                    if (isShareMenuOpen) drawSocialShareButtons();
                 }
             }
             if (gameWon) {
                 ctx.fillStyle = 'rgba(255, 255, 255, 1)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, gameOverTextFade);
                 ctx.fillStyle = 'black';
                 ctx.font = '50px Amanojaku';
                 ctx.fillText('YOU WIN', canvas.width / 2, canvas.height / 2 - 20);
+                ctx.restore();
                 if (canRestart) {
                     ctx.font = 'bold 20px "Segoe UI"';
                     ctx.fillText(isMobile ? 'Tap to restart' : 'press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
                     drawShareButton();
+                    if (isShareMenuOpen) drawSocialShareButtons();
                 }
             }
         }
@@ -1554,6 +1657,26 @@
                 
                 ctx.drawImage(images.share, sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, x, y, w, h);
             }
+        }
+
+        function drawSocialShareButtons() {
+            socialButtons.forEach(btn => {
+                if (btn.visible && images[btn.imageKey] && images[btn.imageKey].complete) {
+                    const stateData = animationStates.shareIcon;
+                    const columns = stateData.columns;
+                    const frameX = btn.frame % columns;
+                    const frameY = Math.floor(btn.frame / columns);
+                    const sourceX = frameX * stateData.spriteWidth;
+                    const sourceY = frameY * stateData.spriteHeight;
+
+                    const w = btn.width * btn.scale;
+                    const h = btn.height * btn.scale;
+                    const x = btn.x - (w - btn.width) / 2;
+                    const y = btn.y - (h - btn.height) / 2;
+
+                    ctx.drawImage(images[btn.imageKey], sourceX, sourceY, stateData.spriteWidth, stateData.spriteHeight, x, y, w, h);
+                }
+            });
         }
 
         function drawPreMenu() {
@@ -1674,6 +1797,39 @@
 
             shareButton.x = canvas.width / 2 + 275;
             shareButton.y = canvas.height / 2 - 80;
+            
+            const platforms = [
+                { key: 'shareTelegram', action: shareOnTelegram },
+                { key: 'shareReddit', action: shareOnReddit },
+                { key: 'shareFacebook', action: shareOnFacebook },
+                { key: 'shareWhatsApp', action: shareOnWhatsApp },
+                { key: 'shareTwitter', action: shareOnTwitter }
+            ];
+
+            const totalWidth = platforms.length * 60 + (platforms.length - 1) * 10;
+            let startX = (canvas.width - totalWidth) / 2;
+
+            socialButtons = platforms.map(p => ({
+                x: startX,
+                y: shareButton.y,
+                width: 60,
+                height: 60,
+                scale: 0,
+                visible: false,
+                isAnimatingIn: false,
+                animationDelay: 0,
+                frame: 0,
+                frameTimer: 0,
+                imageKey: p.key,
+                action: p.action,
+            }));
+            
+            let currentX = startX;
+            for(let i = socialButtons.length -1; i >= 0; i--){
+                socialButtons[i].x = currentX;
+                currentX += socialButtons[i].width + 10;
+            }
+
 
             if (menuState === 'pre-menu') {
                 scrollButton.y = canvas.height + 50;
