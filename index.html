@@ -296,7 +296,8 @@
             roll: 'Audio/Roll.mp3', woosh: 'Audio/Woosh.mp3', kabuki: 'Audio/Kabuki.mp3',
             track: 'Audio/Track.mp3', fail: 'Audio/Fail.mp3', bell: 'Audio/Bell.mp3',
             teleport: 'Audio/Teleport.mp3', crouch: 'Audio/Crouch.mp3', eat: 'Audio/Eat.mp3', secret: 'Audio/Secret.mp3',
-            bounce: 'Audio/Bounce.mp3'
+            bounce: 'Audio/Bounce.mp3',
+            paper: 'Audio/Paper.mp3'
         };
         let assetsLoaded = 0;
         const totalAssets = Object.keys(imageSources).length + Object.keys(soundSources).length;
@@ -512,6 +513,8 @@
                 isInfoBoxVisible = false;
                 scrollButton.isAnimating = true;
                 scrollButton.animationDirection = -1;
+                sounds.paper.currentTime = 0;
+                sounds.paper.play();
                 return true;
             }
 
@@ -590,6 +593,8 @@
                 isInfoBoxVisible = true;
                 scrollButton.isAnimating = true;
                 scrollButton.animationDirection = 1;
+                sounds.paper.currentTime = 0;
+                sounds.paper.play();
                 return true;
             }
 
@@ -1589,6 +1594,15 @@
                 ctx.restore();
 
                 if (canRestart) {
+                    if (isShareMenuOpen) {
+                        ctx.save();
+                        ctx.globalAlpha = (1 - gameOverTextFade) * gameOverFade;
+                        ctx.fillStyle = `rgba(255, 255, 255, ${1 * gameOverFade})`;
+                        ctx.font = 'bold 24px "Segoe UI"';
+                        ctx.fillText('Share your High Score!', canvas.width / 2, shareButton.y - 50);
+                        ctx.restore();
+                    }
+
                     ctx.fillStyle = `rgba(255, 255, 255, ${1 * gameOverFade})`;
                     ctx.font = 'bold 20px "Segoe UI"';
                     ctx.fillText(isMobile ? 'Tap to restart' : 'press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
@@ -1606,6 +1620,14 @@
                 ctx.fillText('YOU WIN', canvas.width / 2, canvas.height / 2 - 20);
                 ctx.restore();
                 if (canRestart) {
+                    if (isShareMenuOpen) {
+                        ctx.save();
+                        ctx.globalAlpha = (1 - gameOverTextFade);
+                        ctx.fillStyle = 'black';
+                        ctx.font = 'bold 24px "Segoe UI"';
+                        ctx.fillText('Share your High Score!', canvas.width / 2, shareButton.y - 50);
+                        ctx.restore();
+                    }
                     ctx.font = 'bold 20px "Segoe UI"';
                     ctx.fillText(isMobile ? 'Tap to restart' : 'press SPACE to restart', canvas.width / 2, canvas.height / 2 + 20);
                     drawShareButton();
@@ -1738,16 +1760,26 @@
         function drawInfoBox() {
             if (isInfoBoxVisible) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-                const boxWidth = canvas.width * 0.8;
+                const boxWidth = canvas.width * 0.6;
                 const boxHeight = canvas.height * 0.8;
                 const boxX = (canvas.width - boxWidth) / 2;
                 const boxY = (canvas.height - boxHeight) / 2;
                 ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
                 
                 ctx.fillStyle = 'white';
-                ctx.font = '20px "Segoe UI"';
                 ctx.textAlign = 'center';
-                ctx.fillText('Info box placeholder.', canvas.width / 2, canvas.height / 2);
+
+                // Title
+                ctx.font = '30px Amanojaku';
+                ctx.fillText('GAME CONTROLS', canvas.width / 2, boxY + 60);
+
+                // Body Text
+                ctx.font = '20px "Segoe UI"';
+                const lineHeight = 30;
+                let currentY = boxY + 120;
+                ctx.fillText('JUMP - Space ; Arrow Up ; Tap once', canvas.width / 2, currentY);
+                currentY += lineHeight;
+                ctx.fillText('CROUCH - S ; Arrow Down ; Tap and hold', canvas.width / 2, currentY);
             }
         }
         
@@ -1806,14 +1838,17 @@
                 { key: 'shareTwitter', action: shareOnTwitter }
             ];
 
-            const totalWidth = platforms.length * 60 + (platforms.length - 1) * 10;
+            const socialButtonWidth = 70;
+            const socialButtonGap = 20;
+
+            const totalWidth = platforms.length * socialButtonWidth + (platforms.length - 1) * socialButtonGap;
             let startX = (canvas.width - totalWidth) / 2;
 
             socialButtons = platforms.map(p => ({
                 x: startX,
                 y: shareButton.y,
-                width: 60,
-                height: 60,
+                width: socialButtonWidth,
+                height: socialButtonWidth,
                 scale: 0,
                 visible: false,
                 isAnimatingIn: false,
@@ -1827,7 +1862,7 @@
             let currentX = startX;
             for(let i = socialButtons.length -1; i >= 0; i--){
                 socialButtons[i].x = currentX;
-                currentX += socialButtons[i].width + 10;
+                currentX += socialButtons[i].width + socialButtonGap;
             }
 
 
